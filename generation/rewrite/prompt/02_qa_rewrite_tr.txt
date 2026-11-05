@@ -1,0 +1,291 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, generate a question that requires reasoning about temporal relationships between events from different hops. Target task type: **TR (Temporal Reasoning)**.
+
+Generate exactly 5 questions using the question session ID and its session summary to construct unambiguous references.
+
+## SUBTYPES
+
+| Subtype | Answer Type | Construction | Difficulty Requirement | Common Errors |
+|---------|------------|--------------|----------------------|---------------|
+| **Ordering** | "before/after" or "yes/no" | Compare two event dates, both derived from indirect expressions. Gap between events must be ≤2 days. | ≥2 indirect anchors, gap ≤2 days, ≥4 hops | ✗ Events months/weeks apart. ✗ Directly stated dates |
+| **Duration/Interval** | "X days" (non-round) | Calculate span between two events. Both endpoints must require indirect calculation. Chain ≥2 calculations. | Non-round answer (avoid 7,14,21,30), chained calc, ≥4 hops | ✗ Round number answers. ✗ Single-step calculation |
+| **Recency/Extrema** | Date or event description | Find earliest/latest event meeting a condition. Include near-miss distractors within 1-2 days of boundary. | ≥1 near-miss distractor, conditional filter, ≥4 hops | ✗ Only 2 candidates. ✗ No near-miss |
+| **Temporal Relationship** | "yes/no", "overlapped", "during" | Determine if event falls within a time span. The tested point must be within 1 day of a span edge. | Boundary ≤1 day from edge, span endpoints from different hops, ≥4 hops | ✗ Wide margins. ✗ Span from single hop |
+
+## RULES
+
+### Question Design
+
+**Q1. Temporal reasoning is core**: The answer must depend on comparing, ordering, or calculating time relationships — not just retrieving content.
+
+**Q2. Minimum TWO indirect time anchors**: Every question must include at least two time points requiring calculation from relative expressions. Directly stated dates ("on January 15th") count as zero indirect anchors.
+- ✓ "my course starts eleven days from now" (requires: session date + 11)
+- ✓ "I submitted it nine days ago" (requires: session date − 9)
+- ✗ "the event is on January 15th" (direct, too easy)
+
+**Q3. Multi-step chains**: The answer must require chaining 2-3 calculations, not a single comparison.
+
+**Q4. Session date vs. event date**: The `timestamp` field is always the **session date** (when the user mentioned it). When the actual event occurred at a different time, describe the inferred event date in the evidence text. Temporal reasoning uses **inferred event dates**, not session dates.
+- Session on Jan 10, user says "I adopted Luna last week" → event date ~Jan 3
+- When the event happens during the session itself → event date = session date, no extra annotation needed
+
+**Q5. Perceptibility**: Multimodal evidence must be directly perceivable by the model. Allowed attributes vary by modality:
+
+| Modality | Allowed | Forbidden |
+|----------|---------|-----------|
+| **Image** | Object count, colors, scene type (indoor/outdoor), number of people, weather, object categories, spatial layout, text in image | Exact dimensions, camera model, file metadata |
+| **Video** | All image attributes + action type, stage/state (half-finished/complete), scene transitions, number of distinct scenes | Exact duration in seconds, frame rate, resolution |
+| **Audio (music)** | Instrument types/count, vocal presence and gender, energy/mood (intense/calm), tempo (fast/slow), genre feel | Exact BPM, decibel levels, bitrate, key signature |
+| **Audio (speech)** | Language, speaker count, emotional tone, speaking pace (fast/slow) | Exact word count, duration in seconds |
+| **Audio (sound)** | Sound source types (rain/traffic/birds), source count, indoor/outdoor environment | Exact decibel levels, frequency |
+
+**Q6. Session-event order reversal (≥1 of 5)**: At least 1 question must have session chronological order opposite to event chronological order — a later session mentions an event that happened before an event mentioned in an earlier session. This tests whether the model confuses "when mentioned" with "when happened."
+
+### Perceptual Branching
+
+**P1. Mandatory perceptual branching**: Every question must include a **perceptual branching** mechanism — the multimodal content's perceivable attribute determines which temporal calculation path to follow. Without perceiving the multimodal content, there must be ≥2 possible answers.
+
+**P2. Branch structure**: Each question requires:
+- A **branching hop** (text type): A natural dialogue fragment that establishes a mapping between perceivable attributes and different time values. E.g., "the indoor shoot was five days ago, the outdoor one was eight days ago."
+- A **multimodal hop**: Provides the perceivable fact (e.g., the photo is clearly an indoor scene) that selects the correct branch.
+- The two branches must lead to **different final answers**. If both paths give the same answer, the branch is meaningless.
+
+**P3. Branch naturalness**: The branching hop must read as natural dialogue, not a lookup table. The mapping should arise from the persona's activities.
+- ✓ "I recorded the instrumental demo first, then added vocals three days later" (listener must determine: does this audio have vocals?)
+- ✗ "If the audio has vocals the date is Jan 5, if no vocals the date is Jan 8" (artificial)
+
+**P4. Branch count**: Exactly 2 branches per question. More adds complexity without testing temporal reasoning.
+
+**P5. Distractor branch plausibility**: The wrong branch must be a plausible scenario — not obviously absurd. Both branches should involve the same persona activity domain.
+
+### Evidence Chain
+
+**E1. Hop count**: ≥4 hops per question (recommended 6). Vary counts across the 5 questions.
+
+**E2. Temporal safety**: All text hops must come from sessions with timestamps ≤ the multimodal hop's session timestamp. When multiple multimodal hops exist, check each independently. To provide temporal offsets related to multimodal content, use either:
+- **Same-session text**: User provides time info in the same session as the multimodal upload (e.g., "this dinner was four days ago")
+- **Pre-established rule**: An earlier session establishes a general pattern or scheduled event
+- ✓ text S5 → image S7 → text S7 (same session as image)
+- ✗ text S3 → image S5 → text S8 saying "that photo was from three days before..."
+
+**E3. Multimodal content necessity**: The multimodal hop's perceivable content must be essential for resolving the perceptual branch. Verify: if you replace the multimodal content with a blank, the answer becomes ambiguous (≥2 possible answers). Session date alone is insufficient.
+
+**E4. Hop necessity**: Remove any hop's temporal information → answer becomes undeterminable. State this in reasoning.
+
+**E5. Evidence naturalism**: Write evidence as naturalistic dialogue fragments. At most **1 text hop per question** may be a direct time/rule statement (`[explicit]`); all others must embed temporal info as incidental remarks (`[incidental]`). Tag each in reasoning.
+
+**E6. Session grounding**: Each hop must include `session_id` and `timestamp` (YYYY-MM-DD). Only use sessions listed in Available Sessions. When using relative expressions, ensure they resolve to a single unambiguous date.
+
+**E7. Independent multimodal hops**: Each multimodal file is an independent hop with its own `mm_id` (string). Do NOT combine multiple multimodal files into a single hop. Each multimodal hop has its own `type`, `session_id`, `timestamp`, `evidence`, and `mm_id`.
+
+**E8. Distribute multimodal positions**: The multimodal hop should appear at different positions across the 5 questions (beginning, middle, end).
+
+**E9. Evidence quality**: 
+- **Self-contained**: Each text hop must name its subject explicitly. "adding three more to make it 4" → bad (what?). "adding three more stringed instruments to make it 4" → good.
+- **Domain-coherent**: Rules/criteria in evidence must sound natural for the persona. If the multimodal content is from a mismatched domain (e.g., food photo for a gallery curator), abstract to domain-appropriate properties (color tone, texture, reflectivity) rather than referencing the source domain directly (seasoning, herbs).
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions (doing so would leak the branch answer).
+- ✓ "the photo I shared the day of the birthday dinner"
+- ✓ "the audio file I sent while testing boundary detection"
+- ✗ "the photo showing an outdoor scene" (leaks indoor/outdoor branch)
+- ✗ "the audio with guitar solo" (leaks instrument branch)
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions.
+
+## EXAMPLES
+
+### Example 1: Ordering + Image (4 hops, 1-day gap, perceptual branch on indoor/outdoor)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A bright outdoor farmers market with colorful vegetable stalls, people browsing produce under awnings."
+- Current Session (S7, 2025-01-07): User shares a photo from a recent shoot while discussing portfolio updates.
+
+**Output:**
+```json
+{
+  "rewrite_id": 1,
+  "rewritten_question": "Did I submit the grant application before or after the shoot shown in the photo I shared while updating my portfolio?",
+  "short_answer": "After",
+  "full_answer": "After, by one day. You mentioned on January 5 that your outdoor shoot was five days ago and your indoor shoot was three days ago. The photo shows an outdoor scene, so it's the outdoor shoot — around December 31. On January 4 you said you submitted the grant application two days earlier, so around January 2. The indoor shoot would have been January 2 — if you mistook the photo for the indoor one, you'd calculate the same date and get 'same day' instead. January 2 (grant) is after December 31 (outdoor shoot), so the answer is after.",
+  "task_type": "TR",
+  "task_subtype": "Ordering",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User was chatting about applications: 'finally sent off the grant application two days ago, such a relief to have it done' (submitted around 2025-01-02)"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was reviewing recent work: 'the outdoor shoot was five days ago and the indoor studio one was three days ago, both turned out well' (outdoor ~Dec 31, indoor ~Jan 2)"},
+    {"type": "image", "session_id": "S7", "timestamp": "2025-01-07", "evidence": "Photo from a recent shoot shared while updating portfolio", "mm_id": "Q1_image_0"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-07", "evidence": "User said while sharing: 'adding this one to my portfolio — it's from one of those two shoots I mentioned earlier'"}
+  ],
+  "reasoning": "**Perceptual branch**: The photo shows an outdoor scene → outdoor shoot (Dec 31). If mistaken for indoor → Jan 2, answer would flip to 'same day.' Two indirect anchors: grant = Jan 4 − 2 = Jan 2, shoot date depends on branch (outdoor = Jan 5 − 5 = Dec 31, indoor = Jan 5 − 3 = Jan 2). Gap is 2 days (Dec 31 vs Jan 2). Without seeing the image → two possible answers (Before/Same day vs After). Hop necessity: remove hop 1 → grant date unknown; remove hop 2 → shoot dates unknown; remove hop 3 → can't resolve branch; remove hop 4 → can't link image to the two shoots. Naturalism: hop 1 [incidental], hop 2 [incidental], hop 4 [incidental]. Temporal safety: S4 ≤ S7, S5 ≤ S7, S7 = S7. ✓"
+}
+```
+
+### Example 2: Duration/Interval + Audio-music (5 hops, non-round answer, perceptual branch on vocal presence)
+
+**Input:**
+- Caption: "Q2_audio_0 [audio]: An energetic rock track with distorted electric guitar riffs, heavy drum beats, driving bass, and a male vocalist singing aggressively over the instrumentation."
+- Current Session (S8, 2025-01-08): User shares a demo track while discussing album production progress.
+
+**Output:**
+```json
+{
+  "rewrite_id": 2,
+  "rewritten_question": "How many days passed between when I started working on the demo I shared while discussing album progress and the mastering deadline?",
+  "short_answer": "13 days",
+  "full_answer": "13 days. On January 6 you said the mastering deadline is in eleven days, so around January 17. You also mentioned that you recorded the instrumental base first, then added vocals four days later. The demo has vocals, so it's the version with vocals. On January 3 you said you laid down the instrumental base six days ago — that's around December 28. You added vocals four days after that, so the vocal version started around January 1. But the work on this demo began with the instrumental base on December 28. Wait — actually the question asks when you started working on *this* demo. Since the shared demo has vocals, and you added vocals 4 days after the instrumental base (Dec 28 + 4 = Jan 1), and the instrumental base started Dec 28, you started the whole process on December 28. But the vocal work specifically started Jan 1. Hmm — you 'started working on the demo' refers to the full process: Dec 28. But the demo *with vocals* is a distinct version that started Jan 1. Let me re-read: you said 'recorded the instrumental base first, then added vocals four days later' — the demo shared has vocals, meaning it's the version completed after adding vocals. The starting point for this version is when vocals were added: Jan 1. No — 'started working on' means when work began on that track, which is Dec 28. Actually, to avoid this ambiguity, let me redesign.",
+  "full_answer": "13 days. On January 6 you mentioned the mastering deadline is in eleven days, so around January 17. You also said you started the instrumental-only demo nine days ago and the vocal demo five days ago. The shared demo has vocals, so it's the vocal demo — started around January 1. But wait: the instrumental demo started around December 28. Since the shared demo has vocals, the relevant start date is January 1. Hmm, let me recalculate: the instrumental version started Dec 28, but the question is about the demo you shared, which has vocals, started Jan 1. From Jan 1 to Jan 17 is 16 days. That's a round-ish number. Let me adjust the offsets.",
+  "full_answer": "13 days. On January 6 you said the mastering deadline is in eleven days, so around January 17. You also mentioned you started the instrumental-only demo eleven days ago and the vocal demo six days ago. The demo I shared has vocals, so it's the vocal demo — started around December 31. From December 31 to January 17 is 17 days. Still not great. Let me pick better numbers.",
+  "full_answer": "11 days. On January 4 you said the mastering deadline is nine days away, so around January 13. On January 3 you mentioned you started the instrumental-only demo five days ago and began the vocal version two days later. The shared demo has vocals — the instrumental base started around December 29, vocals started around December 31, but 'started working on this demo' = Dec 31 for the vocal version. Hmm, this is getting convoluted. Let me simplify the evidence design and just present the clean version.",
+  "full_answer": "13 days. On January 4 you said the mastering deadline is in nine days, so around January 13. On January 3 you mentioned: 'I started the instrumental demo seven days ago, and kicked off the vocal version three days after that.' The instrumental demo started around December 27; the vocal version started around December 30. The shared demo has vocals, so the start date is December 30. But if you mistook it for the instrumental version, you'd get December 27. From December 30 to January 13 is 14 days — round, bad. From December 31 to January 13 is 13 days — good. Let me adjust: 'started the instrumental demo seven days ago, kicked off the vocal version four days after that.' Instrumental = Dec 27, vocal = Dec 31. Dec 31 to Jan 13 = 13 days. ✓ If wrong branch: Dec 27 to Jan 13 = 17 days.",
+  "short_answer": "13 days",
+  "full_answer": "13 days. On January 4 you said the mastering deadline is nine days away, so January 13. On January 3 you mentioned starting the instrumental demo seven days earlier and kicking off the vocal version four days after that. The instrumental demo started around December 27, and the vocal version around December 31. The shared demo has vocals, so it's the vocal version — started December 31. From December 31 to January 13 is 13 days. If mistaken for the instrumental version, you'd get 17 days instead.",
+  "task_type": "TR",
+  "task_subtype": "Duration/Interval",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was reflecting on studio time: 'I started tracking the instrumental demo seven days ago, then kicked off the vocal version four days after that — totally different energy' (instrumental ~Dec 27, vocal ~Dec 31)"},
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User mentioned a deadline in passing: 'mastering deadline is nine days from now, so I need to finalize everything soon' (deadline ~2025-01-13)"},
+    {"type": "text", "session_id": "S6", "timestamp": "2025-01-06", "evidence": "User was discussing track selection: 'still deciding which version to send for mastering — the raw instrumental has a different vibe but the vocal one hits harder live'"},
+    {"type": "audio", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "Demo track shared while discussing album production progress", "mm_id": "Q2_audio_0"},
+    {"type": "text", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "User said while sharing: 'here's the demo I'm planning to send for mastering — it's one of those two versions I was torn between'"}
+  ],
+  "reasoning": "**Perceptual branch**: Audio has male vocals → vocal version (started Dec 31). If no vocals → instrumental version (started Dec 27), answer would be 17 days. Two indirect anchors: deadline = Jan 4 + 9 = Jan 13, start date = branch-dependent (Dec 27 or Dec 31). Chained calc: Dec 27 + 4 = Dec 31 (vocal start), then Dec 31 to Jan 13 = 13 days. Non-round answer: 13. Without hearing audio → two possible answers (13 or 17). Hop necessity: remove hop 1 → start dates unknown; remove hop 2 → deadline unknown; remove hop 3 → loses context about two versions; remove hop 4 → can't resolve branch; remove hop 5 → can't link audio to the two versions. Naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental], hop 5 [incidental]. Temporal safety: S3, S4, S6 all ≤ S8. ✓"
+}
+```
+
+### Example 3: Recency/Extrema + Video (5 hops, near-miss distractor, perceptual branch on completion state)
+
+**Input:**
+- Caption: "Q3_video_0 [video]: A woodworking workshop — a person is sanding the surface of a nearly complete wooden bookshelf, with clamps still attached to one side and unfinished edges visible."
+- Current Session (S9, 2025-01-09): User shares a workshop video while talking about furniture commissions.
+
+**Output:**
+```json
+{
+  "rewrite_id": 3,
+  "rewritten_question": "After I switched to the new wood supplier, which was the first furniture commission video I shared with you? Return in YYYY-MM-DD format.",
+  "short_answer": "2025-01-09",
+  "full_answer": "2025-01-09. You mentioned on January 5 that you're switching to the new supplier in four days, so the switch was around January 9. You shared workshop videos on January 3 (finished dresser — completed piece), January 8 (completed dining table), and January 9. The January 8 video is a near-miss — just one day before the switch. The video from January 9 shows an unfinished bookshelf (clamps still on, rough edges), which matters because you said on January 7 that the in-progress commissions were filmed at the start of each build. But wait — actually the branch here is: you said 'I only started filming in-progress shots after switching suppliers, before that I only recorded the finished results.' The video shows an unfinished piece → it's an in-progress shot → filmed after the supplier switch. The January 8 video of a completed table could have been filmed anytime. The January 9 video is confirmed post-switch because it's in-progress. So the first post-switch video is January 9.",
+  "short_answer": "2025-01-09",
+  "full_answer": "2025-01-09. You mentioned on January 5 that you'd switch to the new wood supplier in four days, so around January 9. You shared videos on January 3, January 8, and January 9. The January 8 one is a near-miss (1 day before switch). The shared video shows a piece still being worked on (clamps, unfinished edges). You mentioned that completed pieces use the old supplier's stock and in-progress pieces use the new supplier's wood. Since this video shows an in-progress piece, it uses the new supplier — confirming January 9 as the first post-switch video.",
+  "task_type": "TR",
+  "task_subtype": "Recency/Extrema",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User shared a video of a completed dresser commission: 'just delivered this one, client loved the finish'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was planning ahead: 'switching to the new wood supplier in four days — all the completed pieces right now use the old supplier's stock, but anything still in progress by then will be the new wood' (switch ~Jan 9)"},
+    {"type": "text", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "User shared a video of a completed dining table: 'another one done, this was a tricky commission' (near-miss: 1 day before supplier switch)"},
+    {"type": "video", "session_id": "S9", "timestamp": "2025-01-09", "evidence": "Workshop video shared while discussing furniture commissions", "mm_id": "Q3_video_0"},
+    {"type": "text", "session_id": "S9", "timestamp": "2025-01-09", "evidence": "User said while sharing: 'here's what I'm working on now — this is one of the commissions I mentioned'"}
+  ],
+  "reasoning": "**Perceptual branch**: Video shows unfinished piece (clamps, rough edges) → in-progress → uses new supplier's wood → confirmed post-switch. If it showed a completed piece → could be old supplier stock finished before the switch → ambiguous whether post-switch. Near-miss: Jan 8 video is 1 day before boundary. Without seeing video → can't determine if Jan 9 video is in-progress or completed → can't confirm it uses new supplier. Hop necessity: remove hop 1 → lose earlier candidate; remove hop 2 → switch date and supplier rule unknown; remove hop 3 → lose near-miss distractor; remove hop 4 → can't resolve branch; remove hop 5 → can't link video to commissions. Naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental], hop 5 [incidental]. Temporal safety: S3, S5, S8 all ≤ S9. ✓"
+}
+```
+
+### Example 4: Temporal Relationship + Audio-speech (5 hops, boundary ≤1 day, session-event reversal, perceptual branch on speaker count)
+
+**Input:**
+- Caption: "Q4_audio_0 [audio]: A recorded conversation with two distinct voices — one male, one female — discussing project milestones and next steps in a professional tone."
+- Current Session (S9, 2025-01-09): User shares a meeting recording while organizing project files.
+
+**Output:**
+```json
+{
+  "rewrite_id": 4,
+  "rewritten_question": "Was the deadline for the meeting I recorded and shared while organizing project files within the sprint window between the design review and the code freeze?",
+  "short_answer": "Yes",
+  "full_answer": "Yes, but just barely — one day before the code freeze. On January 3 you said the design review was eleven days ago, so around December 23. On January 7 you mentioned code freeze is in six days, so January 13. The recorded meeting has two speakers — you said the one-on-one sync had a deadline of January 8 and the team standup had a deadline of January 15. Since the audio has exactly two voices, it's the one-on-one sync with deadline January 8. But wait — let me recalculate: you said on January 5 'the one-on-one deliverable is due in three days' = January 8, and on January 6 'the team standup action items are due in nine days' = January 15. January 8 falls within [December 23, January 13] — and is just 1 day from... hmm, not quite. Let me use: design review Dec 23, code freeze Jan 13. One-on-one deadline Jan 12 instead. Jan 12 is 1 day before Jan 13 edge. Yes.",
+  "short_answer": "Yes",
+  "full_answer": "Yes, just barely — one day before the code freeze. You mentioned on January 7 that the design review happened fifteen days ago, so around December 23. On January 3 you said the code freeze is in ten days, so January 13. The sprint window is December 23 to January 13. The recording has two speakers, which means it's the one-on-one sync. You said on January 6 that the one-on-one deliverable is due in six days (January 12) and the team standup items are due in three days (January 9). January 12 falls within the window — just 1 day from the code freeze edge. If you mistook the audio for the team standup (which would have more voices), the deadline would be January 9, still within the window but with a 4-day margin. However, the branch matters because with different offsets the answer could flip.",
+  "short_answer": "Yes",
+  "full_answer": "Yes, just barely. You mentioned on January 7 that the design review was fifteen days ago, so around December 23. On January 3 you said the code freeze is in ten days, so January 13. The sprint window is December 23 to January 13. The recording has two distinct speakers — you mentioned the one-on-one sync is just two people and the team standup has five. Since there are two voices, it's the one-on-one. You said on January 6 the one-on-one deliverable is due in six days (January 12) and the team standup items are due in two days (January 8). January 12 is 1 day before the code freeze edge (January 13) — it barely falls inside. If mistaken for the team standup, the deadline would be January 8, which is also inside but with a comfortable 5-day margin. To make the branch critical, the wrong branch must give a different yes/no answer. Let me redesign so one branch falls outside.",
+  "short_answer": "Yes",
+  "full_answer": "Yes, by exactly one day. You mentioned on January 7 that the design review was twelve days ago, so around December 26. On January 3 you said the code freeze is in eight days, so January 11. The sprint window is December 26 to January 11. The recording has two speakers, so it's the one-on-one sync. You said on January 6 the one-on-one deliverable is due in four days (January 10) and the team standup items are due in five days (January 11). January 10 is within [Dec 26, Jan 11]. If mistaken for team standup → deadline Jan 11 = exactly the edge, ambiguous. Hmm, still both inside. I need one branch inside, one outside.",
+  "short_answer": "Yes",  
+  "full_answer": "Yes, by one day. You mentioned on January 7 that the design review was ten days ago, so around December 28. On January 3 you said the code freeze is in seven days, so January 10. The sprint window is December 28 to January 10. The recording has two speakers → one-on-one sync. You said on January 5 the one-on-one deliverable is due in four days (January 9), and the full team review is due in five days (January 10). Wait, Jan 10 is the edge itself. Let me make the team review due Jan 11 — outside the window. So: on January 5 you said 'the one-on-one deliverable is due in four days' (Jan 9) and 'the team review is due in six days' (Jan 11). Jan 9 is inside [Dec 28, Jan 10] — 1 day from edge. Jan 11 is outside. Branch matters: wrong perception → wrong answer.",
+  "short_answer": "Yes",
+  "full_answer": "Yes, by one day. On January 7 you mentioned the design review was ten days ago (around December 28). On January 3 you said the code freeze is in seven days (January 10). The sprint window is December 28 to January 10. The audio has two distinct speakers, and you mentioned the one-on-one sync involves two people while the team review has the whole squad. Since the recording has two voices, it's the one-on-one sync. On January 5 you said the one-on-one deliverable is due in four days (January 9) and the team review deliverable is due in six days (January 11). January 9 falls within [December 28, January 10] — just 1 day from the edge. If mistaken for the team review, the deadline would be January 11, which falls outside the window — the answer would flip to No.",
+  "task_type": "TR",
+  "task_subtype": "Temporal relationship",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was planning the sprint: 'code freeze is in seven days, need to wrap up all open items by then' (code freeze ~2025-01-10)"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was prioritizing deliverables: 'the one-on-one sync deliverable is due in four days, and the team review deliverable is due in six days — the one-on-one is just me and the lead, but the team review involves the whole squad' (one-on-one deadline ~Jan 9, team review ~Jan 11)"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-07", "evidence": "User was reflecting on the sprint: 'hard to believe the design review was ten days ago already, feels like we just had it' (design review ~2024-12-28)"},
+    {"type": "audio", "session_id": "S9", "timestamp": "2025-01-09", "evidence": "Meeting recording shared while organizing project files", "mm_id": "Q4_audio_0"},
+    {"type": "text", "session_id": "S9", "timestamp": "2025-01-09", "evidence": "User said while sharing: 'found this recording from one of those meetings — figured I should file it properly'"}
+  ],
+  "reasoning": "**Perceptual branch**: Audio has 2 speakers → one-on-one sync (deadline Jan 9). If more speakers → team review (deadline Jan 11). Jan 9 is inside [Dec 28, Jan 10], 1 day from edge. Jan 11 is outside → answer flips to No. Without hearing audio → two possible answers (Yes/No). **Session-event reversal**: S3 (earlier session) establishes code freeze Jan 10 (later event); S7 (later session) references design review Dec 28 (earlier event). A model using session order would reverse span endpoints. Three indirect anchors: code freeze = Jan 3 + 7 = Jan 10, design review = Jan 7 − 10 = Dec 28, deadline = branch-dependent (Jan 5 + 4 = Jan 9 or Jan 5 + 6 = Jan 11). Hop necessity: remove hop 1 → span end unknown; remove hop 2 → deadlines and branch mapping unknown; remove hop 3 → span start unknown; remove hop 4 → can't resolve branch; remove hop 5 → can't link audio to the meetings. Naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental], hop 5 [incidental]. Temporal safety: S3, S5, S7 all ≤ S9. ✓"
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Count**: Exactly 5 questions.
+2. **Hops**: ≥4 per question (recommended 6). Each multimodal file is a separate hop. Hop counts vary across questions.
+3. **Subtypes**: Use different subtypes when possible.
+4. **Indirect anchors**: ≥2 per question. No directly stated dates as anchors.
+5. **Temporal safety**: Every text hop's session timestamp ≤ each multimodal hop's session timestamp.
+6. **Perceptual branching**: Each question has a branch where multimodal perception selects the temporal path. Without perceiving the content, ≥2 possible answers exist.
+7. **Branch answer divergence**: The two branches lead to different final answers.
+8. **Tight gaps**: Ordering → ≤2 days. Temporal Relationship → boundary ≤1 day from edge.
+9. **Non-round answers**: Duration/Interval avoids 7, 14, 21, 30.
+10. **Near-miss**: Recency/Extrema has ≥1 distractor within 1-2 days of boundary.
+11. **Session-event reversal**: ≥1 of 5 questions has session order opposite to event order.
+12. **Multimodal positions**: Distributed across questions (not always last).
+13. **Necessity**: Each hop removal → answer undeterminable (stated in reasoning).
+14. **Naturalism**: ≤1 `[explicit]` text hop per question. Others `[incidental]`.
+15. **References**: Event-context only. No perceptual descriptions in questions (would leak branch). Unambiguous across sessions.
+16. **Independent multimodal hops**: Each multimodal file is a separate hop with its own `mm_id` (string). No combined types like `image+audio`.
+17. **Evidence quality**: Each text hop is self-contained (no missing subjects) and domain-coherent (no out-of-place terminology for the persona).
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**IMPORTANT:** Session summaries are reference only. Do not copy from them into evidence. Evidence must be grounded in the actual multimodal content.
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "...",
+      "short_answer": "...",
+      "full_answer": "...",
+      "task_type": "TR",
+      "task_subtype": "Ordering | Duration/Interval | Recency/Extrema | Temporal relationship",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "..."},
+        {"type": "video", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "...", "mm_id": "Q1_video_0"}
+      ],
+      "reasoning": "..."
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `evidence_chain`: Array of ≥4 hops (recommended 6). Each multimodal file is an independent hop.
+  - `type`: `"text"` | `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop, never combined.
+  - `session_id`, `timestamp`: Must match available sessions. Timestamp = session date.
+  - `evidence`: Dialogue fragment with inferred event date when different from session date (e.g., "User mentioned registering 'nine days ago' (around 2024-12-30)")
+  - `mm_id`: Required for multimodal hops. Always a string (e.g., `"Q1_video_0"`). Copy exactly from input caption.
+- `reasoning`: Must include: (a) perceptual branch description with both paths and their different answers, (b) calculation steps with indirect anchor count, (c) hop necessity with removal test, (d) gap/boundary analysis, (e) session-event reversal explanation (when applicable), (f) naturalism tags per text hop, (g) temporal safety check

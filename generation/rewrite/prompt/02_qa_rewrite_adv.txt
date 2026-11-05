@@ -1,0 +1,227 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, create statements for the model to judge whether each conflicts with dialogue memory. Target task type: **ADV (Adversarial - False Premise)**.
+
+Generate exactly 5 questions. Format: "Determine whether the following statement conflicts with the dialogue memory: [statement]"
+
+## SUBTYPES
+
+| Subtype | Definition | Construction | Common Errors |
+|---------|-----------|--------------|---------------|
+| **Fabricated fact** | Claims something that doesn't exist in content | Change ONE perceptual detail to a near-miss alternative within the same fine-grained subcategory (e.g., 1→2 objects, left→right position) | ✗ Cross-category swap (piano→drums). ✗ Order-of-magnitude change (3→30). ✗ Fabricated entity absent from all sessions |
+| **Misattribution** | Attributes to the wrong entity | Swap ONE perceptual property between two entities that both appear AND belong to the same category. Cascade all downstream claims consistently from this single root swap. See Example 2 | ✗ Swap between different categories (chef↔audience). ✗ Entities with obviously different descriptions |
+| **Temporal displacement** | Gets time/order wrong | Swap two adjacent steps or events as perceived in the multimodal content | ✗ Large time jumps. ✗ Reversing entire sequences |
+| **Version conflict** | Correct under old rule, wrong under current | Statement applies outdated criteria while implying current compliance. The factual basis for applying the rule must come from multimodal perception. See Example 2 | ✗ Using version conflict for ≥2 of 5 questions |
+
+## RULES
+
+### Statement Design
+
+**S1. Minimal perturbation**: The false claim must be a near-miss — same fine-grained subcategory, differing by one small perceptual detail. Test: a knowledgeable person without the multimodal evidence should find the false statement plausible.
+
+**S2. Claim density (Yes statements)**: ≥4 independently verifiable claims, exactly one false. Correct claims must be potentially confusable details (not obviously correct background). At least one correct claim must be **counter-intuitive** — it must contradict a "normal expectation" established by at least one text hop, yet be confirmed correct by evidence. Example: a text hop says electric guitars in the archive typically use heavy distortion → statement claims clean tone → multimodal content confirms clean tone.
+- ✗ Forbidden: padding with trivially correct claims like "both are in a kitchen"
+
+**S3. Counter-intuitive design (No statements)**: ≥4 independently verifiable claims, all correct. At least one claim must contradict a "normal expectation" established by at least one text hop, yet be confirmed correct by evidence.
+
+**S4. Perceptibility**: Multimodal evidence must be directly perceivable.
+- ✓ Allowed: counts, presence/absence, relative comparisons, colors, actions, sequences, instrument types, emotional tone, spatial layout, motion direction
+- ✗ Forbidden: exact durations in seconds, BPM, frame rates, resolution, decibel levels, Hz
+
+**S5. Perceptual anchor by modality**: The false claim (for Yes) or the key counter-intuitive claim (for No) must target a perceptual dimension native to the modality. Text hops provide context/motivation only — never the perceptual fact itself.
+
+| Modality | Anchorable dimensions |
+|----------|----------------------|
+| **Image** | Object count, spatial layout (left/right/front/back), color, presence/absence, relative size, text/signage content, material/texture |
+| **Video** | Action sequence/order, motion direction, appearance/disappearance timing, scene transitions, simultaneous events, spatial trajectory |
+| **Audio (music)** | Instrument type/count, vocal presence/absence, melodic mood (upbeat/somber), structural order (intro/verse/chorus/outro), tempo feel (fast/slow) |
+| **Audio (speech)** | Speaker count, language, emotional tone, keyword-level content, turn order, interruptions |
+| **Audio (sound)** | Sound source type/count, co-occurrence, temporal order, presence/absence of specific sounds |
+
+### Evidence Chain
+
+**E1. Hop count**: ≥4 hops per question (recommended 6). Vary counts across the 5 questions.
+
+**E2. Temporal safety**: All text hops must come from sessions with timestamps ≤ the multimodal hop's session timestamp. When multiple multimodal hops exist, check each independently. This prevents information leakage by ensuring no text hop can retroactively describe multimodal content.
+- ✓ text S3 (Jan 3) → text S3 (Jan 3) → image S5 (Jan 5)
+- ✓ text S4 (Jan 4) → audio S5 (Jan 5) → text S3 (Jan 3) [text S3 ≤ S5 ✓]
+- ✗ text S3 → image S5 → text S7 discussing what S5's image shows
+
+**E3. Multimodal irreplaceability (text-only shortcut test)**: The false claim's truth value must be determinable **only** through multimodal perception. No text hop — individually or collectively — may contain information sufficient to judge whether the false claim is true or false. **Test: mask all multimodal hops. If the model can still determine the false claim's truth value using only text hops → redesign.**
+
+For version conflict: the rule comes from text, but whether the rule is triggered must depend on a perceptual fact from the multimodal content (e.g., text says "no vocals allowed"; only audio reveals vocals are present).
+
+**E4. Hop necessity**: Every hop must be load-bearing. In reasoning, state: "If hop N removed → [specific wrong outcome]."
+
+**E5. Evidence naturalism**: Write evidence as naturalistic dialogue fragments. At most **1 text hop per question** may be a direct rule statement (`[explicit]`); all others must embed info as incidental remarks during other discussions (`[incidental]`). Tag each in reasoning.
+
+**E6. Session grounding**: Each hop must include `session_id` and `timestamp` (YYYY-MM-DD matching the session's date). Only use sessions listed in Available Sessions.
+
+**E7. Independent multimodal hops**: Each multimodal file is an independent hop with its own `mm_id` (string). Do NOT combine multiple multimodal files into a single hop. Each multimodal hop has its own `type` (e.g., `"image"`, `"audio"`), `session_id`, `timestamp`, `evidence`, and `mm_id`.
+
+**E8. Evidence quality**: 
+- **Self-contained**: Each text hop must name its subject explicitly. "adding three more to make it 4" → bad (what?). "adding three more stringed instruments to make it 4" → good.
+- **Domain-coherent**: Rules/criteria in evidence must sound natural for the persona. If the multimodal content is from a mismatched domain, abstract to domain-appropriate properties rather than referencing the source domain directly.
+- **No perceptual leakage**: Text hops must never describe perceptual facts from the multimodal content (counts, colors, spatial relations, sounds heard, actions seen). They may only provide context, motivation, rules, or criteria.
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions.
+- ✓ "the desk photo I shared during the workspace audit"
+- ✗ "the photo showing a keyboard and succulent"
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions, using `question_session_id` and its session summary.
+
+## EXAMPLES
+
+### Example 1: Fabricated Fact — Yes (image, 5 hops)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A plated dish on a dark slate board — two grilled salmon fillets with cross-hatch grill marks, a cluster of roasted asparagus spears on the left side, a lemon wedge tucked at the top-right corner, and a thin drizzle of white dill sauce across both fillets."
+- Current Session (S11, 2025-01-14): User shares a plated dish photo for their food blog's "protein feature" series, asking whether it meets their editorial guidelines.
+
+**Output:**
+```json
+{
+  "rewrite_id": 1,
+  "rewritten_question": "Determine whether the following statement conflicts with the dialogue memory: The plated dish photo I shared for the protein feature series meets the editorial bar — it has three salmon fillets with visible grill marks, asparagus as the vegetable side, a citrus garnish, and sauce applied directly on the protein rather than pooled on the plate.",
+  "short_answer": "Yes",
+  "full_answer": "Yes. The photo shows two salmon fillets, not three. All other claims are correct: visible cross-hatch grill marks ✓, asparagus as side ✓, lemon wedge as citrus garnish ✓, sauce drizzled on fillets not pooled ✓. Counter-intuitive: 'sauce applied directly on the protein' sounds like a plating mistake for food photography (usually pooled beside), but the photo confirms the drizzle is on the fillets, which matches the blog's 'rustic not fussy' guideline.",
+  "task_type": "ADV",
+  "task_subtype": "Fabricated fact",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-06", "evidence": "User told a friend about the blog direction: 'I'm launching a protein feature series — each post highlights one protein, styled rustic not fussy, I want it to feel like a home cook nailed it'"},
+    {"type": "text", "session_id": "S6", "timestamp": "2025-01-09", "evidence": "User was discussing plating philosophy with another food blogger: 'for the protein series I sauce directly on top, never a pool on the side — I know it's unconventional for food photography but that's the whole rustic angle'"},
+    {"type": "text", "session_id": "S8", "timestamp": "2025-01-11", "evidence": "User mentioned during grocery planning: 'the protein feature needs a vegetable side and some kind of citrus or acid element in frame — keeps the composition balanced and suggests flavor contrast'"},
+    {"type": "text", "session_id": "S8", "timestamp": "2025-01-11", "evidence": "In the same conversation, user added: 'and I always want sear marks or grill marks visible — that's the hero texture for the series'"},
+    {"type": "image", "session_id": "S11", "timestamp": "2025-01-14", "evidence": "Plated dish on dark slate: salmon fillets with cross-hatch grill marks, roasted asparagus cluster on left, lemon wedge at top-right, white dill sauce drizzled across fillets", "mm_id": "Q1_image_0"}
+  ],
+  "reasoning": "False claim: three fillets (actual: two — near-miss count, same subcategory). Correct claims: grill marks ✓, asparagus ✓, citrus garnish ✓, sauce on protein ✓. Counter-intuitive: sauce on protein sounds wrong for food photography but is confirmed by both image and blog philosophy. TEXT-ONLY SHORTCUT TEST: no text hop mentions fillet count — masking the image makes the count unjudgeable ✓. Hop 1 [incidental]: if removed, no context for the series or 'rustic' ethos. Hop 2 [incidental]: if removed, can't verify sauce-on-protein is intentional (counter-intuitive claim loses grounding). Hop 3 [incidental]: if removed, can't verify vegetable+citrus requirements. Hop 4 [explicit]: if removed, can't verify grill mark requirement. Hop 5 (image): if removed, can't verify fillet count or sauce placement. Multimodal irreplaceability: fillet count only from image ✓. Naturalism: hops 1-3 [incidental], hop 4 [explicit] — 1 explicit max met ✓. Temporal safety: S3 ≤ S11, S6 ≤ S11, S8 ≤ S11, S8 ≤ S11 ✓."
+}
+```
+
+---
+
+### Example 2: Version Conflict — Yes (audio, 6 hops)
+
+**Input:**
+- Caption: "Q1_audio_0 [audio]: Acoustic guitar fingerpicking in a mellow folk style, with soft intermittent humming from a male voice blending into the guitar phrases. Room reverb gives a live-room feel. No percussion. Piece ends with a slow fade on a sustained open chord."
+- Current Session (S14, 2025-01-17): User shares a guitar demo recording for their "unplugged evenings" playlist, checking if it meets the current curation standards.
+
+**Output:**
+```json
+{
+  "rewrite_id": 2,
+  "rewritten_question": "Determine whether the following statement conflicts with the dialogue memory: The guitar demo I shared for the unplugged evenings playlist still qualifies — it features acoustic fingerpicking with no percussion, has a live-room reverb quality rather than studio-processed sound, maintains a mellow folk feel throughout, and ends on a sustained chord with a slow fade.",
+  "short_answer": "Yes",
+  "full_answer": "Yes. All four stated claims are factually correct about the recording: acoustic fingerpicking ✓, no percussion ✓, live-room reverb ✓, mellow folk feel ✓, slow fade on sustained chord ✓. However, the recording also contains soft male humming. The updated curation standards require zero vocal elements — any human voice, including humming, disqualifies a track. The statement silently relies on the old standards which permitted incidental vocals. Counter-intuitive correct claim: 'live-room reverb rather than studio-processed' — reverb in a recording might suggest studio processing, but this is natural room acoustics, which the playlist specifically prefers.",
+  "task_type": "ADV",
+  "task_subtype": "Version conflict",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-07", "evidence": "User was describing their playlist concept to a friend: 'unplugged evenings is my wind-down ritual — all acoustic, no electronic processing, I want it to sound like someone playing in the next room'"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-10", "evidence": "User discussing curation with a musician friend: 'I actually prefer room reverb over studio polish — if it sounds too clean it kills the intimacy, the raw room sound is what I chase'"},
+    {"type": "text", "session_id": "S9", "timestamp": "2025-01-12", "evidence": "User mentioned while reviewing a batch of tracks: 'I used to be fine with a bit of humming or breath sounds — it felt organic, part of the vibe'"},
+    {"type": "text", "session_id": "S12", "timestamp": "2025-01-15", "evidence": "User came back after a listening session: 'I changed my mind on vocals — even humming pulls my attention, new rule is zero human voice of any kind, humming included, otherwise the guitar loses focus'"},
+    {"type": "text", "session_id": "S12", "timestamp": "2025-01-15", "evidence": "In the same conversation: 'percussion is still a hard no too — just strings and the room, that is it'"},
+    {"type": "audio", "session_id": "S14", "timestamp": "2025-01-17", "evidence": "Acoustic guitar fingerpicking recording, mellow folk style, live-room reverb, ends with slow fade on sustained chord", "mm_id": "Q1_audio_0"}
+  ],
+  "reasoning": "Five correct claims: fingerpicking ✓, no percussion ✓, live-room reverb ✓, mellow folk ✓, slow fade ✓. Counter-intuitive: room reverb sounds like it might be studio processing but is actually preferred. Conflict: recording contains humming, violating updated zero-vocal rule; statement omits this. TEXT-ONLY SHORTCUT TEST: text hops state the rule (no vocals) but never describe the recording's audio content — masking the audio, the model cannot know humming is present ✓. Hop 1 [incidental]: if removed, no playlist concept context. Hop 2 [incidental]: if removed, can't ground room-reverb preference (counter-intuitive claim). Hop 3 [incidental]: if removed, no baseline old rule to recognize version change. Hop 4 [explicit]: if removed, model applies old criteria and answers No. Hop 5 [incidental]: if removed, can't verify percussion rule still applies. Hop 6 (audio): if removed, can't verify humming is present. Multimodal irreplaceability: presence of humming only from audio ✓. Naturalism: hops 1-3,5 [incidental], hop 4 [explicit] — 1 explicit max met ✓. Temporal safety: S4 ≤ S14, S7 ≤ S14, S9 ≤ S14, S12 ≤ S14, S12 ≤ S14 ✓."
+}
+```
+
+---
+
+### Example 3: Temporal Displacement — No (video, 5 hops)
+
+**Input:**
+- Caption: "Q1_video_0 [video]: A short pottery tutorial. The potter centers a clay ball on the wheel, then opens it by pressing thumbs into the center, then pulls up the walls using both hands, then uses a rib tool to smooth the outer surface, and finally cuts the piece off the wheel with a wire tool. The clay is a reddish-brown terracotta color throughout."
+- Current Session (S10, 2025-01-13): User shares a pottery tutorial clip for their ceramics teaching channel, checking if the demonstrated sequence matches the beginner curriculum they designed.
+
+**Output:**
+```json
+{
+  "rewrite_id": 3,
+  "rewritten_question": "Determine whether the following statement conflicts with the dialogue memory: The pottery tutorial I shared for the ceramics channel follows the beginner sequence — even though the potter smooths the walls with a rib tool after pulling them up rather than before, the demo uses terracotta clay, and the piece is wire-cut off the wheel at the end.",
+  "short_answer": "No",
+  "full_answer": "No. The sequence is correct: center → open → pull walls → rib-smooth → wire-cut. 'Even though smoothing after pulling' frames the rib-tool ordering as potentially wrong, but the video confirms this is exactly what happens, and the curriculum specifies this order. Terracotta clay ✓, wire-cut ending ✓. The counter-intuitive framing is the trap — beginners often expect smoothing before pulling, but the curriculum and video both confirm smooth-after-pull.",
+  "task_type": "ADV",
+  "task_subtype": "Temporal displacement",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-06", "evidence": "User was telling a fellow instructor: 'my beginner curriculum follows a strict five-step sequence — I want every tutorial on the channel to demonstrate the same order so students build muscle memory'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-08", "evidence": "User chatting with a student who asked about rib tool timing: 'a lot of people think you smooth first then pull, but in my curriculum the rib comes after pulling — you need the wall height established before refining the surface'"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-10", "evidence": "User mentioned during a materials discussion: 'for the beginner series I always use terracotta — it is forgiving and students can see the texture changes clearly against that reddish tone'"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-10", "evidence": "In the same conversation: 'every demo ends with the wire cut — I want beginners to see the full lifecycle from centering to separation'"},
+    {"type": "video", "session_id": "S10", "timestamp": "2025-01-13", "evidence": "Pottery tutorial showing sequential steps on the wheel with terracotta clay, ending with wire-cut separation", "mm_id": "Q1_video_0"}
+  ],
+  "reasoning": "Counter-intuitive: 'even though smoothing after pulling' frames the sequence as suspect, but video confirms this exact order. TEXT-ONLY SHORTCUT TEST: text hop 2 does describe the rib-after-pull order — however, the statement is No (all correct), and the counter-intuitive verification requires the video to independently confirm the sequence actually happens this way. Without the video, we only know the intended curriculum order, not whether this specific demo follows it ✓. Hop 1 [incidental]: if removed, no context for strict sequence requirement. Hop 2 [incidental]: if removed, can't know the rib-after-pull ordering is intentional, model might judge it as an error. Hop 3 [incidental]: if removed, can't verify terracotta is standard for beginners. Hop 4 [incidental]: if removed, can't verify wire-cut ending is expected. Hop 5 (video): if removed, can't verify the actual demonstrated sequence matches curriculum. Multimodal irreplaceability: actual step order in this specific demo only from video ✓. Naturalism: all text hops [incidental] — 0 explicit, met ✓. Temporal safety: S3 ≤ S10, S5 ≤ S10, S7 ≤ S10, S7 ≤ S10 ✓."
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Distribution**: Exactly 5 questions. 3–4 Yes + 1–2 No. ≥3 different subtypes. Version conflict ≤1. Fabricated fact ≤2. Misattribution ≥1.
+2. **Statement quality (Yes)**: ≥4 verifiable claims, exactly 1 false (near-miss), ≥1 counter-intuitive correct claim.
+3. **Statement quality (No)**: ≥4 verifiable claims, all correct. ≥1 counter-intuitive correct claim.
+4. **Evidence chain**: ≥4 hops per question (recommended 6). Hop counts vary across the 5 questions.
+5. **Temporal safety**: Every text hop's session timestamp ≤ each multimodal hop's session timestamp.
+6. **Multimodal irreplaceability (text-only shortcut test)**: Mask all multimodal hops. Can the model still determine the false claim's truth value using only text hops? If yes → redesign. For No answers: can the key counter-intuitive claim be verified without the multimodal content? If yes → redesign.
+7. **Naturalism**: ≤1 `[explicit]` text hop per question. Others are `[incidental]`.
+8. **References**: Event-context only. No perceptual descriptions. Unambiguous across sessions.
+9. **No single subtype across all 5 questions**.
+10. **Independent multimodal hops**: Each multimodal file is a separate hop with its own `mm_id` (string). No combined types like `image+audio`.
+11. **Evidence quality**: Each text hop is self-contained (no missing subjects), domain-coherent, and contains **no perceptual facts from the multimodal content** (no counts, colors, sounds, actions observed in the media).
+12. **mm_id consistency**: Every multimodal hop's `mm_id` in `evidence_chain` exactly matches the corresponding `mm_id` from the input caption.
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**IMPORTANT:** Session summaries are reference only. Do not copy from them into evidence. Evidence must be grounded in the actual multimodal content.
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "Determine whether the following statement conflicts with the dialogue memory: [statement]",
+      "short_answer": "Yes or No",
+      "full_answer": "...",
+      "task_type": "ADV",
+      "task_subtype": "Fabricated fact | Misattribution | Temporal displacement | Version conflict",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "..."},
+        {"type": "video", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "...", "mm_id": "Q1_video_0"}
+      ],
+      "reasoning": "..."
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `evidence_chain`: Array of ≥4 hops (recommended 6).
+  - `type`: `"text"` | `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop, never combined.
+  - `session_id`, `timestamp`: Must match available sessions
+  - `evidence`: Raw facts as dialogue fragments. Do not describe the hop's role in reasoning. **Text hops must never contain perceptual descriptions of the multimodal content.**
+  - `mm_id`: Required for multimodal hops. Always a string (e.g., `"Q1_image_0"`). Copy exactly from input caption.
+- `reasoning`: Must include: (a) claim verification with counter-intuitive identification, (b) text-only shortcut test result, (c) hop necessity with removal test, (d) multimodal irreplaceability check, (e) naturalism tags per text hop, (f) temporal safety check
+
+Now generate 5 ADV questions.

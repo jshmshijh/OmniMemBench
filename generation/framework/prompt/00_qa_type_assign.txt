@@ -1,0 +1,99 @@
+You are assigning task types for a memory benchmark based on multimodal content.
+
+## TASK
+
+For each multimodal content group below, evaluate which task types it is most naturally suited for generating QA pairs. Output the top 3 most suitable types with a score (1-5, where 5 = highly natural fit).
+
+Key principle: Judge based on the **semantic properties** of the multimodal content — what facts, relationships, and structures are present — not whether a specific question has been asked.
+
+## TASK TYPE DEFINITIONS
+
+### SH - Single Hop
+Directly retrieve a single piece of information. Best for content that contains clear, distinct factual details.
+
+Subtypes:
+- Direct fact retrieval
+- Entity attribute query
+- Preference/habit query
+
+**Single Hop Constraint:** If a content group contains 2 or more multimodal items (regardless of modality type), do NOT assign SH. Such groups inherently require cross-source integration.
+
+### MH - Multi Hop
+Requires integrating multiple pieces of information. Best for content where multiple entities, attributes, or conditions co-exist and can be compared or filtered.
+
+| Subtype | Definition | When to assign |
+|---------|------------|----------------|
+| **Conditional filtering** | Filter candidates based on conditions | Content has multiple candidates or countable elements |
+| **Counting/Aggregation** | Count or aggregate across sources | Content involves quantities or categories |
+| **Comparison** | Compare objects/events on specific dimensions | Content describes comparable attributes across entities |
+| **Chain reasoning** | Link information across sources (A→B→C) | Content has attributes that can chain to other facts |
+
+### TR - Temporal Reasoning
+Reasoning involving time. Best for content where temporal aspects (ordering, duration, recency) are naturally present.
+
+| Subtype | Definition |
+|---------|------------|
+| **Ordering** | Content shows events/steps with a natural sequence |
+| **Duration/Interval** | Content implies time spans between events |
+| **Recency/Extrema** | Content involves identifying earliest/latest occurrences |
+| **Temporal relationship** | Content shows overlapping or concurrent events |
+
+### CR - Causal Reasoning
+Reasoning involving cause and effect. Best for content that shows actions leading to outcomes, or decisions with motivations.
+
+| Subtype | Definition |
+|---------|------------|
+| **Cause/Motivation inference** | Content shows choices or decisions with inferable reasons |
+| **Effect/Outcome inference** | Content shows actions with visible results or impacts |
+| **Judgment/Evaluation inference** | Content shows preferences, evaluations, or quality assessments |
+
+### ADV - Adversarial (False Premise)
+Questions containing false premises that must be identified. Best for content with specific, verifiable details that can be minimally perturbed.
+
+| Subtype | Definition | Applicability |
+|---------|------------|---------------|
+| **Fabricated fact** | A key detail can be changed to a near-miss alternative | Content with countable items, specific entities, or precise attributes |
+| **Misattribution** | Properties can be swapped between entities | Content with multiple distinct entities sharing a category |
+| **Temporal displacement** | Time/order can be subtly altered | Content with sequential or temporal information |
+
+### REF - Answer Refusal
+Questions the model should acknowledge it cannot answer. Best for content where certain related information is clearly absent or insufficient.
+
+| Subtype | Definition |
+|---------|------------|
+| **Never mentioned** | Plausible related facts that are absent from the content |
+| **Insufficient information** | General info present but specifics missing |
+| **Out of scope** | Would require external knowledge beyond the content |
+
+### UPD - Knowledge Update
+Track changes in information over time. Best for content that can naturally be embedded into a timeline with evolving states.
+
+| Subtype | Definition |
+|---------|------------|
+| **State change** | Content describes states that could transition (job, location, equipment) |
+| **Numerical update** | Content involves quantities that could change |
+| **Preference evolution** | Content shows opinions or preferences that could shift |
+
+## INPUT CONTENT GROUPS
+
+{questions_list}
+
+## OUTPUT FORMAT
+
+Return a JSON object:
+```json
+{
+  "assignments": [
+    {
+      "question_id": "Q1",
+      "top_types": [
+        {"type": "MH", "subtype": "Comparison", "score": 5, "reason": "Content contains two instruments with comparable tonal attributes"},
+        {"type": "ADV", "subtype": "Fabricated fact", "score": 4, "reason": "Specific countable details (3 strings, wooden body) can be minimally perturbed"},
+        {"type": "CR", "subtype": "Judgment/Evaluation inference", "score": 3, "reason": "Content shows quality differences that imply preference"}
+      ]
+    }
+  ]
+}
+```
+
+Each reason should be one short sentence explaining why this type fits the content's semantic properties.

@@ -1,0 +1,262 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, generate a question that requires **inferring** information by integrating multiple hops — the answer should NOT be explicitly stated in any single hop, and should NOT be derivable by simple one-step attribute matching. Target task type: **CR (Causal Reasoning)**.
+
+Generate exactly 5 questions. All questions must be answerable with Yes/No (or a short evaluative answer like "Better/Worse").
+
+## SUBTYPES
+
+| Subtype | Definition | Question Pattern | Common Errors |
+|---------|-----------|-----------------|---------------|
+| **Cause/Motivation inference** | Infer why something happened or why user made a choice | "Is the reason I did X related to Y?", "Did I choose X because of Y?" | ✗ Asking about the obvious cause. ✗ Single-attribute matching |
+| **Effect/Outcome inference** | Infer the result or impact of something on the user | "Would X cause Y for me?", "Would replicating X make my situation better or worse?" | ✗ Effect obvious from common sense. ✗ No persona-specific threshold |
+| **Judgment/Evaluation inference** | Infer user's opinion, preference match, or multi-criteria evaluation | "Does X meet my criteria for Y?", "Would X qualify for both my A and B collections?" | ✗ All dimensions pass/fail uniformly. ✗ Criteria guessable from domain knowledge |
+| **Chain reasoning** | Link information across sources through a chain where at least one intermediate conclusion is derived, not stated in any hop | "What is the correct X for Y?", "Which category does Z fall into?" | ✗ Every intermediate value is explicitly stated in some hop (that's MH, not CR). ✗ Synonym-based linking |
+
+## WHAT COUNTS AS CAUSAL REASONING
+
+**NOT CR (single-step matching — FORBIDDEN):**
+- [text] User requires SI units → [image] Diagram uses imperial → "Does this meet the standard?" One-step: imperial ≠ SI → No.
+
+**NOT CR (domain-knowledge fillable — FORBIDDEN):**
+- [text] User wants "warm" sound → [audio] Bass-heavy audio → "Does this match?" The mapping "bass-heavy = warm" is common audio knowledge; no persona-specific step needed.
+
+**NOT CR (all intermediates explicitly stated — that's MH):**
+- [text] "X means death" → [text] "death = critical" → [text] "critical = RA-3F" → [image] shows X. Every intermediate is directly stated. This is multi-hop lookup, not causal reasoning.
+
+**IS CR (persona-specific intermediate):**
+- [text] User's "stress test" rule: ≥3 unit conversions required → [image] Circuit with mV, µA, kΩ → [text] Final answers must be in SI base units → "Does this qualify as a stress test?" Model must: identify units from image → determine which need conversion → count conversions → compare to persona-specific threshold. The intermediate "3 conversions needed" is derived, not stated.
+
+**IS CR (causal chain with hidden mechanism):**
+- [text] User gets migraines from prolonged high-contrast flickering → [video] Rapidly alternating B&W slides → [text] Meeting is 3 hours → "Should I be concerned?" Model must chain: visual pattern → matches trigger → duration = prolonged → health risk.
+
+**IS CR (chain with derived intermediate):**
+- [text] User classifies outcomes by severity tiers → [image] Chart shows symbol X for a case → [text] Severity tiers map to review tracks. But the intermediate "what severity tier does X correspond to?" requires interpreting the symbol AND applying user's non-standard tier boundaries — the tier assignment itself is derived, not directly stated.
+
+## RULES
+
+### Question Design
+
+**Q1. Inference, not matching**: The answer must require combining information through a non-trivial reasoning step. "Hop says X, content shows not-X, therefore No" is NOT CR. There must be at least one **implicit intermediate conclusion** — a fact derived, not directly stated in any hop.
+
+**Q2. Persona-specific intermediate**: The implicit intermediate must depend on a persona-specific definition, threshold, or mapping. If domain knowledge alone suffices, redesign.
+
+**Q3. Multi-dimensional judgment**: For Judgment/Evaluation questions, criteria must involve ≥2 independent dimensions with a **split verdict** (some pass, some fail). At least one dimension's result must be counter-intuitive.
+
+**Q4. Multimodal as reasoning bottleneck**: If you remove all multimodal hops and keep only text, the answer must become indeterminate. Raw perceptual facts from multimodal must be mapped to persona-specific concepts before entering the reasoning chain.
+
+**Q5. Perceptibility**: Multimodal evidence must be directly perceivable.
+- ✓ Allowed: counts, presence/absence, relative comparisons, colors, actions, emotional tone
+- ✗ Forbidden: exact duration in seconds, BPM, frame rate, resolution, decibel levels
+
+**Q6. Chain reasoning distinction**: For Chain reasoning questions, at least one intermediate value in the chain must be **derived through reasoning**, not directly stated in any hop. If every intermediate can be found verbatim in some hop, it belongs in MH, not CR.
+
+### Evidence Chain
+
+**E1. Hop count**: ≥4 hops per question (recommended 6). Vary counts across the 5 questions.
+
+**E2. Temporal safety**: All text hops must come from sessions with timestamps ≤ the multimodal hop's session timestamp. When multiple multimodal hops exist, check each independently.
+- ✓ text S4 → text S5 → image S8
+- ✗ text S4 → image S5 → text S7 describing what S5's image shows
+
+**E3. Multimodal irreplaceability**: Text hops provide rules/criteria/context; multimodal hops provide perceptual facts. No text hop may restate a perceptual fact from the multimodal content.
+
+**E4. Evidence naturalism**: Write evidence as naturalistic dialogue fragments. At most **1 text hop per question** may be a direct rule statement (`[explicit]`); all others must embed info as incidental remarks (`[incidental]`). Tag each in reasoning.
+
+**E5. Session grounding**: Each hop must include `session_id` and `timestamp` (YYYY-MM-DD). Only use sessions listed in Available Sessions.
+
+**E6. Independent multimodal hops**: Each multimodal file is an independent hop with its own `mm_id` (string). Do NOT combine multiple multimodal files into a single hop. Each multimodal hop has its own `type`, `session_id`, `timestamp`, `evidence`, and `mm_id`.
+
+**E7. Evidence quality**: 
+- **Self-contained**: Each text hop must name its subject explicitly. "adding three more to make it 4" → bad (what?). "adding three more stringed instruments to make it 4" → good.
+- **Domain-coherent**: Rules/criteria in evidence must sound natural for the persona. If the multimodal content is from a mismatched domain (e.g., food photo for a gallery curator), abstract to domain-appropriate properties (color tone, texture, reflectivity) rather than referencing the source domain directly (seasoning, herbs).
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions.
+- ✓ "the garden photo from the portfolio review session"
+- ✗ "the photo showing a red bridge and koi pond"
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions.
+
+## EXAMPLES
+
+### Example 1: Judgment/Evaluation (multi-dimensional split, counter-intuitive, 4 hops)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A serene Japanese-style garden featuring a koi pond with five orange koi fish, Japanese maple trees in autumn colors, a red painted wooden bridge arching over a small stream, and a traditional stone lantern on the left bank."
+- Current Session (S8, 2025-01-08): User shares a garden photo during portfolio review for landscape architecture collection.
+
+**Output:**
+```json
+{
+  "rewrite_id": 1,
+  "rewritten_question": "Based on our landscape architecture classification system, would this garden photo from the portfolio review session count toward my 'naturalistic design' collection?",
+  "short_answer": "No",
+  "full_answer": "No. Your 'naturalistic design' collection requires all structural elements to use unfinished natural materials. The garden contains a wooden bridge, but it is painted red — meaning it has been artificially finished. This disqualifies it despite all other elements (koi pond, maple trees, stone lantern) being natural. Multi-dimensional verdict: water feature ✓, foliage ✓, stone element ✓, structural material ✗ — the bridge passes the 'wooden' check but fails the 'unfinished' check, which is counter-intuitive since wood is a natural material.",
+  "task_type": "CR",
+  "task_subtype": "Judgment/Evaluation inference",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "User was describing their portfolio system to a colleague: 'I have five collections, and the naturalistic one is where I'm most selective — it's about capturing design that looks untouched by human processing'"},
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User was reviewing a different garden photo and remarked 'I'm really strict on the naturalistic stuff — if there's a bridge or fence, the material has to look like it was pulled from nature yesterday, no coatings, no paint, nothing processed'"},
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "During the same review, user added 'even one structural piece that's been treated kills the whole submission — doesn't matter how perfect everything else is'"},
+    {"type": "image", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "Garden photo showing various landscape elements including a wooden bridge and other structural features", "mm_id": "Q1_image_0"}
+  ],
+  "reasoning": "Inference chain: (1) identify bridge as structural element from image [derived from multimodal], (2) perceive it is painted red [derived from multimodal], (3) map 'painted' → 'not unfinished natural material' using persona-specific definition from hop 2 [derived — requires user's specific definition of 'unfinished'], (4) apply 'single failure kills submission' rule from hop 3. Multi-dimensional split: water/foliage/stone pass, structural material fails. Counter-intuitive: wood IS natural but paint makes it 'processed.' Bottleneck: without image, can't know whether bridge is painted or raw wood. Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [explicit]. ✓ Temporal safety: S2 ≤ S8, S4 ≤ S8, S4 ≤ S8. ✓"
+}
+```
+
+---
+
+### Example 2: Effect/Outcome (causal chain, persona-specific threshold, 5 hops)
+
+**Input:**
+- Caption: "Q1_video_0 [video]: A person types rapidly on a laptop in a dimly lit home office. The desk lamp is positioned directly behind the laptop screen, creating a strong backlight. The room is otherwise dark. Q1_image_0 [image]: A close-up screenshot of a code editor with bright green text on a black background, multiple open file tabs, and a terminal panel at the bottom."
+- Current Session (S6, 2025-01-06): User shares a desk setup video and code editor screenshot during an ergonomics review.
+
+**Output:**
+```json
+{
+  "rewrite_id": 2,
+  "rewritten_question": "Based on what I've shared about my visual sensitivities, would replicating this exact desk setup from the ergonomics review session make my afternoon coding sessions better or worse?",
+  "short_answer": "Worse",
+  "full_answer": "Worse. Two compounding problems: (1) the desk lamp behind the screen creates strong backlighting — you've said high luminance contrast between screen and surroundings worsens your eye strain; (2) the bright green-on-black code editor keeps pupils dilated, which you noted increases fatigue during extended sessions. Combined with your 4+ hour afternoon blocks, both factors compound.",
+  "task_type": "CR",
+  "task_subtype": "Effect/Outcome inference",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "User was rearranging their desk and mentioned 'I figured out the hard way that having a bright light behind my screen is the worst — the contrast between the screen and everything around it just destroys my eyes'"},
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was switching IDE themes and said 'bright text on dark background looks cool but it keeps my pupils wide open, and after a couple hours that's what causes the fatigue'"},
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User mentioned while planning their day: 'afternoons are my long coding blocks, usually four hours plus without a real break'"},
+    {"type": "video", "session_id": "S6", "timestamp": "2025-01-06", "evidence": "Home office video showing desk lamp positioned behind laptop screen in dim room", "mm_id": "Q1_video_0"},
+    {"type": "image", "session_id": "S6", "timestamp": "2025-01-06", "evidence": "Code editor screenshot showing bright text on dark background", "mm_id": "Q1_image_0"}
+  ],
+  "reasoning": "Inference chain: (1) perceive backlight positioning from video — lamp directly behind screen [derived from multimodal: Q1_video_0], (2) map this to 'high luminance contrast' using persona-specific sensitivity from hop 1 [derived], (3) perceive bright-on-dark color scheme from screenshot [derived from multimodal: Q1_image_0], (4) map this to 'pupil dilation → fatigue' using persona-specific mechanism from hop 2 [derived], (5) factor in 4+ hour duration from hop 3 → compounding effect. Bottleneck: without video, lamp position unknown; without screenshot, editor theme unknown. Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [explicit]. ✓ Temporal safety: S2, S3, S4 all ≤ S6. ✓"
+}
+```
+
+---
+
+### Example 3: Chain Reasoning (derived intermediate, persona-specific tier boundaries, 5 hops)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A timeline chart showing 17 cases throughout 2010. Horizontal lines indicate case duration. Symbols: hollow circle = onset, X = death, triangle = recovery. Case 8 spans from March to June and ends with X. Case 11 also ends with X. Other cases end with triangles."
+- Current Session (S8, 2025-01-08): User uploads epidemiological timeline during public health module audit.
+
+**Output:**
+```json
+{
+  "rewrite_id": 3,
+  "rewritten_question": "Based on the epidemiological timeline I uploaded during the public health module audit, what is the correct regulatory action code for Case 8?",
+  "short_answer": "RA-3F",
+  "full_answer": "RA-3F. Case 8 ends with X (death). Under your outcome classification, death = 'critical outcome.' But the intermediate step is non-trivial: your severity tier assignment depends on BOTH outcome symbol AND case duration — cases lasting ≥3 months with fatal outcomes are 'critical-extended,' which routes differently from short-duration fatalities. Case 8 spans March to June (~4 months), so it qualifies as critical-extended. Your regulatory mapping routes critical-extended to 'mandatory federal review with longitudinal flag.' The action code for that specific track is RA-3F (not RA-3, which is standard critical without the extension flag).",
+  "task_type": "CR",
+  "task_subtype": "Chain reasoning",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was building the classification system and said 'X on the chart means death — but I don't just look at the symbol, the duration matters too, a long-running fatal case is a different beast than a quick one'"},
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User explained further: 'if a fatal case lasted three months or more, that's critical-extended — shorter fatalities are just critical, and the regulatory track is different for each'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was filling in the code table with a colleague: 'standard critical goes to RA-3, but critical-extended gets RA-3F — the F is for the longitudinal follow-up flag, federal wants extra tracking on those'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User added: 'and don't confuse RA-3F with RA-2C, the conditional review — that's only for non-fatal cases with complications, never for fatalities'"},
+    {"type": "image", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "Timeline chart showing case durations and endpoint symbols", "mm_id": "Q1_image_0"}
+  ],
+  "reasoning": "Chain: (1) perceive Case 8's endpoint symbol (X) from image [multimodal], (2) perceive Case 8's duration (March–June, ~4 months) from image [multimodal], (3) derive severity tier: X + ≥3 months → 'critical-extended' [derived — this tier assignment combines two perceptual facts with persona-specific duration threshold, not stated for Case 8 in any hop], (4) map critical-extended → RA-3F from hop 3. The derived intermediate is step 3: no hop states that Case 8 is 'critical-extended' — the model must compute this by combining the symbol, the duration, and the user's tier boundary. Without this derivation, model might answer RA-3 (standard critical, ignoring duration). Plausible wrong answer: RA-3 (applying symbol-only classification) or RA-2C (confusing review tracks). Bottleneck: without image, can't see Case 8's symbol or duration. Evidence naturalism: hop 1 [incidental], hop 2 [explicit], hop 3 [incidental], hop 4 [incidental]. ✓ Temporal safety: S3 ≤ S8, S5 ≤ S8. ✓"
+}
+```
+
+---
+
+### Example 4: Cause/Motivation (elimination reasoning, persona-specific mapping, 4 hops)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A bar chart titled 'Q3 Regional Sales' showing four regions: North ($450K, blue bar), South ($380K, green bar), East ($520K, orange bar), West ($410K, red bar). The East bar is highlighted with a gold border and an asterisk. A footnote reads '* = exceeded target.'"
+- Current Session (S8, 2025-01-08): User shares Q3 sales chart during performance review session.
+
+**Output:**
+```json
+{
+  "rewrite_id": 4,
+  "rewritten_question": "In the Q3 sales chart from the performance review session, is the region I flagged for a strategy overhaul likely the same one that exceeded its target?",
+  "short_answer": "No",
+  "full_answer": "No. East exceeded its target (gold border + asterisk). You flag regions for overhaul when they fall below 85% of the top performer's revenue. Top performer = East at $520K; 85% = $442K. South ($380K) is the only region below this threshold. So the flagged region (South) ≠ the target-exceeder (East).",
+  "task_type": "CR",
+  "task_subtype": "Cause/Motivation inference",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was discussing regional performance with a colleague: 'I look at how each region stacks up against the leader, not just their own target — that gives a better picture of who's really lagging'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was explaining their review process to a colleague: 'I don't just look at who missed their own target — I compare everyone to the top region, and if someone's below 85% of that, they're getting the overhaul conversation'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "In the same conversation, user added 'and don't confuse the overhaul list with the target list — a region can smash its own target and still be fine, or miss its target but not trigger overhaul if they're close to the leader'"},
+    {"type": "image", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "Q3 sales chart showing four regions with dollar amounts, one highlighted with gold border and asterisk", "mm_id": "Q1_image_0"}
+  ],
+  "reasoning": "Inference chain: (1) perceive East as target-exceeder from image (gold border + asterisk) [derived from multimodal], (2) read all dollar amounts and identify East ($520K) as top performer [derived from multimodal], (3) calculate overhaul threshold: 520K × 0.85 = $442K using persona-specific 85% rule from hop 2 [derived — this percentage is not a standard metric], (4) check each region against $442K [derived from multimodal], (5) find South ($380K) below threshold → flagged region ≠ target-exceeder. Bottleneck: without image, don't know which region exceeded target or specific dollar amounts. Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental]. ✓ Temporal safety: S3 ≤ S8, S5 ≤ S8. ✓"
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Count**: Exactly 5 questions. All Yes/No or short evaluative answers.
+2. **Inference depth**: Every question has ≥1 implicit intermediate conclusion that is derived, not stated. No single-step matching.
+3. **Persona-specific**: Every intermediate conclusion requires a persona-specific rule/threshold/mapping. Domain knowledge alone is insufficient.
+4. **Multi-dimensional**: Judgment/Evaluation questions have ≥2 dimensions with split verdict and ≥1 counter-intuitive result.
+5. **Multimodal bottleneck**: Removing multimodal hops makes the answer indeterminate for every question.
+6. **Temporal safety**: Every text hop's session timestamp ≤ each multimodal hop's session timestamp.
+7. **Multimodal irreplaceability**: No text hop restates perceptual facts from multimodal content.
+8. **Subtypes**: ≥2 different subtypes across 5 questions.
+9. **Naturalism**: ≤1 `[explicit]` text hop per question. Others `[incidental]`.
+10. **References**: Event-context only. Unambiguous across sessions.
+11. **Reasoning format**: Each question's reasoning shows inference chain with `[derived]` labels and confirms bottleneck.
+12. **Independent multimodal hops**: Each multimodal file is a separate hop with its own `mm_id` (string). No combined types like `image+audio`.
+13. **Hop count**: ≥4 hops per question (recommended 6).
+14. **Chain reasoning distinction**: For Chain reasoning questions, verify at least one intermediate value is not explicitly stated in any hop.
+15. **Evidence quality**: Each text hop is self-contained (no missing subjects) and domain-coherent (no out-of-place terminology for the persona).
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**IMPORTANT:** Session summaries are reference only. Do not copy from them into evidence. Evidence must be grounded in the actual multimodal content.
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "...",
+      "short_answer": "Yes or No",
+      "full_answer": "...",
+      "task_type": "CR",
+      "task_subtype": "Cause/Motivation inference | Effect/Outcome inference | Judgment/Evaluation inference | Chain reasoning",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "..."},
+        {"type": "video", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "...", "mm_id": "Q1_video_0"}
+      ],
+      "reasoning": "..."
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `evidence_chain`: Array of ≥4 hops (recommended 6).
+  - `type`: `"text"` | `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop, never combined.
+  - `session_id`, `timestamp`: Must match available sessions
+  - `evidence`: Raw facts as dialogue fragments. Do not describe the hop's role in reasoning.
+  - `mm_id`: Required for multimodal hops. Always a string (e.g., `"Q1_image_0"`). Copy exactly from input caption.
+- `reasoning`: Must include: (a) inference chain with `[derived]` labels on intermediate conclusions, (b) persona-specific mapping identification, (c) multimodal bottleneck confirmation, (d) naturalism tags per text hop, (e) temporal safety check
+
+Now generate 5 CR questions.

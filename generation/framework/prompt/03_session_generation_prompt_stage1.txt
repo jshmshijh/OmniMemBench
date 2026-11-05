@@ -1,0 +1,146 @@
+You are designing session outlines for multi-session dialogue generation.
+
+【Input】
+1. Persona: A character profile
+{persona_info}
+
+2. Event Graph: A timeline of events, each with attached question slot IDs
+{event_graph}
+
+3. Question Slots ({N} total):
+   Each slot has a question_id, task_type, and modality captions — but NOT the actual question text. You only need to know which slots belong to which events, and what kind of multimodal content is involved.
+{questions_list}
+
+【Goal】
+Divide these {N} question slots into conversation sessions. Each session represents one natural dialogue between the user (persona) and an AI assistant.
+
+【Output Format】
+{
+  "total_sessions": <number, must be between 30-50>,
+  "sessions": [
+    {
+      "session_id": "S1",
+      "date": "YYYY-MM-DD",
+      "time_of_day": "morning/afternoon/evening/night",
+      "events_involved": ["E1", "E2"],
+      "questions_involved": ["Q1", "Q3"],
+      
+      "trigger": "Why the user starts this conversation at this moment",
+      "session_summary": "What happens in this conversation — the user's goals, actions, and how multimodal content is exchanged",
+      "session_outcome": "How the conversation ends — decisions made, next steps, or what's left open"
+    }
+  ]
+}
+
+【Key Requirements】
+
+1. Session Count:
+   - Total sessions must be between 30-50
+   - The first 3 sessions (S1, S2, S3) must NOT have any questions assigned
+     * These serve as context-building sessions to establish the persona and initial situation
+   - Distribute the remaining questions naturally across sessions S4 onwards
+
+2. Question Assignment:
+   - Every question slot must be assigned to exactly one session
+   - A session's questions should come from the events it involves
+   - NOT all sessions need assigned questions — some can be pure context-building or follow-up
+   - Vary session density naturally (some sessions have 1-2 questions, others 4-5)
+
+3. Timeline Consistency:
+   - Session dates MUST align with the event graph timeline
+   - If the event graph spans 2023-09 to 2024-08, sessions should span a similar period
+   - A session's date should match or follow the events it involves
+   - Maintain chronological order across sessions
+
+4. Cross-Session References:
+   - At least 20-30% of sessions (roughly 8-15 sessions) should contain references to previous sessions
+   - These can be explicit: "Following up on what we discussed last time...", "Remember when I mentioned..."
+   - Or implicit: referring to a decision made earlier, building on previous advice, updating a status
+   - This is critical for testing cross-session memory — make these references natural and varied
+   - Examples of cross-session reference patterns:
+     * "Last time you suggested X, I tried it and..." (referencing advice)
+     * "I finally did the thing I was stressed about" (referencing a previously discussed plan)
+     * "That issue we talked about is resolved now" (status update)
+     * User revisits a topic from 5-10 sessions ago without re-explaining context
+
+5. Natural Conversation Flow:
+   - Each session should have a clear trigger (why now?)
+   - The summary should describe a coherent conversation, not just a list of topics
+   - Session outcome should provide closure or setup for future sessions
+   - Reflect the persona's conversation style
+
+【CRITICAL: Information Isolation Rules】
+
+The session metadata you write will later be visible to AI models being evaluated. To prevent information leakage, you MUST follow these rules strictly.
+
+**Core Principle: Session metadata should paint a SCENE, not describe CONTENT.**
+
+Focus on: the persona's emotional state, life situation, social context, goals, frustrations, habits, and relationship with the AI. Multimodal files are just tools the persona uses during the conversation — mention them only as incidental actions ("shares a file", "uploads a clip"), never as the focus of the summary.
+
+Think of it like writing a diary entry: "Had a stressful day rushing to meet the beta deadline. Vented to the AI about the animation team falling behind, then squeezed in a quick review before dinner." — NOT "Uploaded two simulation clips and asked AI to verify the visual interactions match theoretical models."
+
+**Rule 1: Summaries must center on SCENE, MOTIVATION, and EMOTIONAL TEXTURE — not on multimodal content.**
+
+Do not describe what files contain, what type of content they are (e.g., "data visualization", "technical diagram", "simulation clip", "customer service recording"), or what the AI analyzes in them. Instead, describe the persona's day, mood, goals, and conversational dynamics.
+
+  ✓ "User is stressed about the upcoming deadline and squeezes in a quick batch review between meetings. They share some files for a sanity check and vent about the team being behind schedule."
+  ✗ "User uploads two simulation clips and asks the AI to review the visual interactions shown to ensure they match theoretical models."
+  
+  ✓ "User has a lazy Sunday morning and casually catches up with the AI. They share something they came across over the weekend and ask for the AI's take on it."
+  ✗ "User shares a photo of potato plants with spots at RHS Wisley garden and asks the AI to identify the disease."
+
+**Rule 2: Triggers must describe LIFE MOMENTS, not content-level tasks.**
+  ✓ "User just got home from a frustrating errand and needs to decompress before getting back to work"
+  ✗ "User shares an audio recording of a frustrating customer service interaction"
+  
+  ✓ "User is excited about a new phase of the project and wants to brainstorm"
+  ✗ "User starts scoring the Ancient Civilizations episode with Middle Eastern instruments"
+
+**Rule 3: Outcomes must describe DECISIONS, MOOD SHIFTS, or NEXT STEPS — not findings or answers.**
+  ✓ "User feels more confident about the current batch and plans to tackle the rest tomorrow"
+  ✗ "User verifies the correct trajectory path and updates the module's answer key"
+  
+  ✓ "User decides to revisit this later after sleeping on it"
+  ✗ "User identifies the painting as 'The Raft of the Medusa' by Géricault"
+
+**Rule 4: Do not use task type terminology or cognitive operation names.**
+Terms like "fabricated facts", "misattribution", "temporal displacement", "entity attributes", "recency extrema", "chain reasoning", "insufficient information", "never-mentioned", "state change", "numerical update" must NEVER appear. Use natural, everyday language.
+  ✓ "User asks the AI to help compare two conversations"
+  ✗ "User asks the AI to identify fabricated facts and assess insufficient information"
+
+**Rule 5: Do not describe or categorize the multimodal content at all — not its type, domain, structure, or subject matter.**
+  ✓ "shares some files for review"
+  ✗ "uploads two simulation clips" / "provides technical diagrams" / "shares data visualizations"
+  
+  ✓ "sends a clip and asks for a quick opinion"
+  ✗ "sends an audio recording of a customer service call"
+
+**The test**: If someone reads ONLY the session metadata (trigger, summary, outcome) without access to any multimodal content or the actual conversation, they should NOT be able to answer ANY of the assigned questions. They should know WHEN the persona talked to the AI, what MOOD they were in, and what PHASE OF LIFE they're navigating — but nothing about the content of the files they shared.
+
+【Example Session — CORRECT】
+{
+  "session_id": "S5",
+  "date": "2020-02-08",
+  "time_of_day": "evening",
+  "events_involved": ["E6"],
+  "questions_involved": ["Q5", "Q12"],
+  "trigger": "User is nervous about hosting friends for the first time since moving",
+  "session_summary": "User is buzzing with pre-event energy and checks in with the AI for moral support. They're second-guessing their preparations, share a couple of files for a quick sanity check, and spiral into overthinking small details. The AI helps them calm down and focus on what matters.",
+  "session_outcome": "User laughs at their own overthinking, feels ready, and promises to report back"
+}
+
+【Example Session — WRONG (leaks information)】
+{
+  "session_id": "S5",
+  "date": "2020-02-08",
+  "time_of_day": "evening",
+  "events_involved": ["E6"],
+  "questions_involved": ["Q5", "Q12"],
+  "trigger": "Just finished cooking pasta, about to invite neighbors Emma and Jason over",
+  "session_summary": "User sends a photo of pasta ingredients and asks if it's enough for 4 people. AI suggests adding garlic bread. User asks about red wine pairing for Italian food. Later mentions Emma is vegetarian.",
+  "session_outcome": "User decides on a Chianti wine and prepares a vegetarian side dish"
+}
+
+The WRONG example leaks: specific people's names, the food type, dietary restrictions, wine choice — all potentially answerable from metadata alone. The CORRECT example tells you about the persona's emotional state and social life without revealing any content details.
+
+Now generate session outlines for the given persona, event graph, and question slots.

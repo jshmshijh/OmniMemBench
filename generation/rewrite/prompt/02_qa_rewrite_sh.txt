@@ -1,0 +1,227 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, generate a natural, persona-appropriate question that requires **precise, fine-grained understanding** of the multimodal content and can be answered directly from it (single-hop). Target task type: **SH (Single-Hop)**.
+
+Generate exactly 5 questions using the question session ID and its session summary to construct unambiguous references.
+
+## DIFFICULTY PATTERNS
+
+Every question must satisfy at least one of these patterns:
+
+| Pattern | Definition | Construction | Common Errors |
+|---------|-----------|--------------|---------------|
+| **Spatial/relational disambiguation** | Multiple similar elements; answer depends on position or adjacency | Ask about an attribute of one element, where another similar element nearby has a different value for that attribute | ✗ Only one instance of the target category exists |
+| **Counter-default detail** | Correct answer contradicts a strong default assumption | Ask about a detail where the content violates expectations for its category | ✗ Answer aligns with the obvious assumption |
+| **Cross-element attribute transfer** | Similar entities share some attributes but differ in the target attribute | Ask about the differing attribute, requiring correct binding to the right entity | ✗ Entities are from different categories (not actually confusable) |
+| **Peripheral precision** | Answer is a specific peripheral detail, not the main subject | Ask about a setup/background detail when a more salient but incorrect candidate exists | ✗ Target detail is the most prominent element |
+
+## RULES
+
+### Question Design
+
+**Q1. Confusable alternatives (mandatory)**: The multimodal content must contain at least one other element from the **same semantic category** that could plausibly be confused with the correct answer. The confusable and correct answer must **share ≥2 attributes** and differ only in the target attribute. If only one instance exists, the question must target a counter-default detail.
+
+**Q2. Answer non-suggestiveness**: Question wording must not leak or hint at the answer. For Yes/No questions, both answers must be equally plausible from wording alone. Test: read only the question — if you feel >60% pulled toward one answer, reword.
+- ✗ "rapid enough to qualify" (suggests Yes)
+- ✗ "too cluttered for" (suggests Yes)
+
+**Q3. Answer type mix**: At most 2 of 5 questions may be Yes/No. Others must require specific short answers (name, color, count, position, etc.).
+
+**Q4. Perceptibility**: Evidence must be directly perceivable.
+- ✓ Allowed: counts, presence/absence, relative comparisons, colors, actions, emotional tone, categories
+- ✗ Forbidden: BPM, frame rate, resolution, exact duration in seconds, decibel levels
+
+**Q5. Preserve answer validity**: The answer must be unambiguously derivable from the actual multimodal content. Difficulty must not compromise correctness.
+
+**Q6. Common-sense resistance**: The answer must NOT be guessable from the scene category or general world knowledge alone. If knowing "this is a café" or "this is a chemistry lab" is enough to guess the answer, redesign.
+- ✗ "Is there an espresso machine in the café?" (common sense: cafés have espresso machines)
+- ✗ "Are there beakers in the lab photo?" (common sense: labs have beakers)
+- ✓ "What color liquid is in the beaker closest to the student's hand?" (requires actual perception)
+
+### Anti-Patterns (FORBIDDEN)
+
+- **Pure direct retrieval**: "What animal is shown?" when only one animal exists
+- **Binary with distant options**: "Piano or drum?" — too easy to distinguish
+- **Gist-answerable**: "Does this scene take place outdoors?" — answerable from vague impression
+- **Common-sense solvable**: Answer derivable from scene category or general knowledge without perceiving the actual content
+- **Weak confusables**: Elements merely coexist but share no attributes (red apple vs. green book)
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions.
+- ✓ "the lab bench photo from our equipment audit"
+- ✗ "the photo showing beakers with colored liquids"
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions.
+
+## EXAMPLES
+
+### Example 1: Spatial/Relational Disambiguation (Image)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A chemistry lab bench with three beakers in a row: left contains blue liquid, center contains green liquid, right contains clear liquid. A student's hand is pouring from the center beaker into a graduated cylinder. Behind the beakers, a rack holds four test tubes filled with liquids of similar blue and green shades."
+- Current Session (S6, 2025-01-06): User shares lab bench photo during equipment audit.
+
+**Output:**
+```json
+{
+  "rewrite_id": 1,
+  "rewritten_question": "In the lab bench photo from our equipment audit, what color liquid is in the beaker being poured from?",
+  "short_answer": "Green",
+  "full_answer": "The student is pouring from the center beaker, which contains green liquid. The left beaker (blue) and right beaker (clear) are nearby confusables. Blue and green share: same container type, similar translucency, cool-toned hues — differ only in specific color. The pouring action identifies the center beaker as the target.",
+  "task_type": "SH",
+  "evidence_chain": [
+    {"type": "image", "session_id": "S6", "timestamp": "2025-01-06", "evidence": "Three beakers: left=blue, center=green (being poured), right=clear. Blue and green share container type, translucency, cool tone (2+ shared attributes). Difficulty: spatial/relational disambiguation — pouring action binds to center position.", "mm_id": "Q1_image_0"}
+  ]
+}
+```
+
+---
+
+### Example 2: Cross-Element Attribute Transfer (Image)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A cartoon scene with six anthropomorphic pigs. On the left: an older male pig in a purple shirt and an older female pig in a pink dress. On the right: a large male pig wearing glasses and a teal shirt, a female pig in an orange dress, and two children in red and blue outfits. A green parrot sits on a stand in the center."
+- Current Session (S5, 2025-01-05): User shares cartoon image for visual distractor analysis.
+
+**Output:**
+```json
+{
+  "rewrite_id": 2,
+  "rewritten_question": "For the cartoon image we reviewed for visual distractors, which pig is wearing glasses — the one in the purple shirt or the one in the teal shirt?",
+  "short_answer": "Teal",
+  "full_answer": "The large male pig wearing glasses is in the teal shirt. The pig in the purple shirt is a different adult male on the left side, no glasses. Both confusables share: adult male pig, large build, solid-colored shirt — differ on glasses and shirt color.",
+  "task_type": "SH",
+  "evidence_chain": [
+    {"type": "image", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "Two adult male pigs: left=purple shirt (no glasses), right=teal shirt (glasses). Shared: both adult males, large, solid-colored shirts. Differ: glasses (yes/no), shirt color. Difficulty: cross-element attribute transfer — binding glasses to correct pig.", "mm_id": "Q1_image_0"}
+  ]
+}
+```
+
+---
+
+### Example 3: Counter-Default Detail (Audio)
+
+**Input:**
+- Caption: "Q1_audio_0 [audio]: A podcast recording with two speakers. One speaker has a deep, resonant male voice. The other has a notably soft-spoken, high-pitched male voice with a gentle cadence. Background café noise is present with occasional clattering."
+- Current Session (S7, 2025-01-07): User shares podcast clip for phonetics review session.
+
+**Output:**
+```json
+{
+  "rewrite_id": 3,
+  "rewritten_question": "In the podcast clip from the phonetics review session, is there a female speaker in the conversation?",
+  "short_answer": "No",
+  "full_answer": "No. Both speakers are male — one with a deep voice and one with a soft-spoken, high-pitched voice. The second speaker's gentle cadence could easily be mistaken for a female voice, but both are male. Difficulty: counter-default — strong assumption that high-pitched + soft = female.",
+  "task_type": "SH",
+  "evidence_chain": [
+    {"type": "audio", "session_id": "S7", "timestamp": "2025-01-07", "evidence": "Two male speakers: one deep-voiced, one soft-spoken/high-pitched. The high-pitched male voice is the counter-default trap — defies expectation that high-pitched + soft = female. Café background adds perceptual complexity. Difficulty: counter-default detail.", "mm_id": "Q1_audio_0"}
+  ]
+}
+```
+
+---
+
+### Example 4: Peripheral Precision (Video)
+
+**Input:**
+- Caption: "Q1_video_0 [video]: A cooking tutorial in a home kitchen. The chef is preparing pasta on a large wooden cutting board. In the background, a whiteboard on the wall has a handwritten grocery list. A small potted herb (basil) sits on the windowsill next to a larger potted herb (rosemary). A red timer on the counter shows digits. The chef wears a blue apron over a white t-shirt."
+- Current Session (S9, 2025-01-09): User shares cooking tutorial video for content review.
+
+**Output:**
+```json
+{
+  "rewrite_id": 4,
+  "rewritten_question": "In the cooking tutorial from the content review session, which herb is on the windowsill closer to the window — the smaller or the larger pot?",
+  "short_answer": "The smaller pot (basil)",
+  "full_answer": "The smaller potted herb (basil) sits on the windowsill next to the larger one (rosemary). Both are potted herbs on the same windowsill — they share container type, location, and category (herbs). They differ in size and species. The chef and cutting board dominate attention, making the windowsill herbs a peripheral detail. Difficulty: peripheral precision — the main subject (chef, pasta) draws attention away from the background herbs.",
+  "task_type": "SH",
+  "evidence_chain": [
+    {"type": "video", "session_id": "S9", "timestamp": "2025-01-09", "evidence": "Two potted herbs on windowsill: smaller basil and larger rosemary. Shared: both herbs, both potted, same windowsill location. Differ: size, species. Main subject (chef preparing pasta) is the salient distractor. Difficulty: peripheral precision.", "mm_id": "Q1_video_0"}
+  ]
+}
+```
+
+---
+
+### Example 5: Spatial/Relational Disambiguation (Image, multi-item caption)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: An overhead view of an architect's desk. Three rolled blueprints are labeled A-101, A-102, and A-103. Blueprint A-101 is partially unrolled showing a floor plan with a circular atrium. A coffee mug sits on top of A-102. A-103 has a yellow sticky note attached. Two mechanical pencils lie parallel: one silver, one black. A scale ruler is positioned diagonally across the desk. Q1_image_1 [image]: A close-up of the sticky note on A-103, reading 'REVISE — client wants east wing expanded, meeting Wed 3pm.'"
+- Current Session (S11, 2025-01-11): User shares desk photos during project status update.
+
+**Output:**
+```json
+{
+  "rewrite_id": 5,
+  "rewritten_question": "In the desk photos from the project status update, which blueprint has the coffee mug on it?",
+  "short_answer": "A-102",
+  "full_answer": "The coffee mug sits on A-102. Three blueprints are present: A-101 (partially unrolled, showing floor plan), A-102 (mug on top), A-103 (sticky note attached). All three share: same format (rolled blueprints), sequential labels, same desk location. They differ in their distinguishing features (unrolled/mug/sticky note). Difficulty: spatial/relational disambiguation — binding the mug to the correct blueprint among three similar items.",
+  "task_type": "SH",
+  "evidence_chain": [
+    {"type": "image", "session_id": "S11", "timestamp": "2025-01-11", "evidence": "Three rolled blueprints A-101/A-102/A-103 on desk. A-101 partially unrolled, A-102 has coffee mug, A-103 has sticky note. Shared: all rolled blueprints, sequential labels, same desk. Differ: distinguishing object/state. Difficulty: spatial/relational disambiguation — three confusable items.", "mm_id": "Q1_image_0"}
+  ]
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Count**: Exactly 5 questions. Each has exactly 1 evidence hop (multimodal).
+2. **Answer types**: At most 2 Yes/No. Others require specific short answers.
+3. **Difficulty**: Every question satisfies ≥1 difficulty pattern. Pattern stated in evidence.
+4. **Confusables**: Every question has ≥1 confusable alternative sharing ≥2 attributes with correct answer. Shared/differing attributes stated in evidence.
+5. **Non-suggestiveness**: Question wording does not lean toward one answer.
+6. **Common-sense resistance**: Answer cannot be guessed from scene category or world knowledge alone.
+7. **Correctness**: Answer is unambiguously derivable from the multimodal content.
+8. **References**: Event-context only. Unambiguous across sessions.
+9. **short_answer**: Contains only the answer — no qualifiers.
+10. **Evidence quality**: Each text hop is self-contained (no missing subjects) and domain-coherent (no out-of-place terminology for the persona).
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["image"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "...",
+      "short_answer": "...",
+      "full_answer": "...",
+      "task_type": "SH",
+      "evidence_chain": [
+        {"type": "video", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "...", "mm_id": "Q1_video_0"}
+      ]
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `evidence_chain`: Array with exactly 1 element.
+  - `type`: `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop.
+  - `session_id`: Current session ID
+  - `timestamp`: Current session date in YYYY-MM-DD
+  - `evidence`: What the multimodal content shows, which difficulty pattern is used, what confusable alternatives exist, and their shared/differing attributes.
+  - `mm_id`: Required. Always a string (e.g., `"Q1_image_0"`). Copy exactly from input caption.
+
+Now generate 5 SH questions.

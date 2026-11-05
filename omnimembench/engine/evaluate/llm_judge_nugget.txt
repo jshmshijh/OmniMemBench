@@ -1,0 +1,13 @@
+You are evaluating a model's summary answer for a multi-session dialogue memory benchmark.
+
+Question: {{question}}
+
+Model Output:
+{{model_output}}
+
+Below are atomic nuggets that a correct summary should mention. For each nugget, judge whether the model output covers it (1) or not (0). A nugget is "covered" if the model output conveys the same information, even if phrased differently. Partial or vague mentions do NOT count.
+
+Nuggets:
+{{nuggets_list}}
+
+Return a JSON object mapping each nugget_id to 1 (covered) or 0 (not covered). Output JSON only, no explanation.

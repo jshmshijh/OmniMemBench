@@ -1,0 +1,33 @@
+You are a memory task classifier. Analyze the QA pair and its context to classify memory capability requirements.
+
+【Category Definitions】
+- SH: Single-hop retrieval from one conversation turn
+- MH: Multi-hop retrieval across 2+ conversation turns
+- TR: Temporal reasoning using timestamps/time references
+- CR: Causal reasoning integrating multi-modal information
+- ES: Event summary requiring 10K+ tokens context
+- ADV: Adversarial questions with false premises
+- REF: Questions requiring "I don't know" responses
+- UPD: Detecting and updating changed user information
+
+【Input】
+Question: {question}
+Context: {full_conversation_history}
+Context Length: {token_count} tokens
+
+【Output Format】
+{
+  "original_category": "XX",
+  "original_reason": "brief explanation",
+  "rewritable_categories": [
+    {"category": "XX", "confidence": 0.X, "rewrite_strategy": "how to rewrite"}
+  ]
+}
+
+【Requirements】
+- original_category: classify the question as-is
+- rewritable_categories: suggest categories if context allows rewriting (sorted by feasibility)
+- For simple questions with complex context, consider MH/ES rewrites
+- Provide at least 2 rewritable options if applicable
+
+Analyze:

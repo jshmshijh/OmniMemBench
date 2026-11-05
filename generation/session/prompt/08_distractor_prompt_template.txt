@@ -1,0 +1,87 @@
+You are generating a realistic multi-turn dialogue for a multimodal conversational memory benchmark.
+This is a DISTRACTOR session — it contains no evidence for any benchmark questions. Its purpose is to add realistic conversational padding that naturally includes multimodal content.
+
+【Task】
+Generate a complete multi-turn dialogue where the user shares and discusses the provided multimodal assets with an AI assistant. The dialogue should:
+- Feel like a real person chatting with an AI assistant
+- Naturally incorporate ALL provided multimodal assets
+- Follow the persona's speaking style
+- Be a self-contained, coherent conversation
+
+【Persona】
+{persona}
+
+【Session Info】
+Session ID: {session_id}
+Date: {date}
+
+【Multimodal Assets to Include】
+Each asset below MUST appear exactly once in the dialogue. The user shares them using <image>, <audio>, or <video> tags.
+{mm_assets}
+
+【CRITICAL CONSTRAINT — Forbidden Topics】
+The following event graph describes the main storyline of this person's life. Your dialogue MUST NOT touch on, reference, or overlap with ANY of these events or their themes. The distractor session should be about completely unrelated topics.
+
+{event_graph}
+
+【CRITICAL CONSTRAINT — Forbidden Questions】
+The following questions are benchmark evaluation questions. Your dialogue MUST NOT contain any information — direct or indirect — that could serve as an answer or partial answer to ANY of these questions. If a topic you are about to write could help answer one of these questions, choose a different topic entirely.
+
+{forbidden_questions}
+
+【Shared Perception Model】
+Both the user and assistant can see/hear all media in real time. Use the provided captions to write dialogue that naturally discusses and reacts to the media content.
+- User side: provide backstory, motivation, emotional reactions, and naturally reference what's in the media.
+- Assistant side: react to the content, ask follow-up questions, give advice or opinions based on what's shared.
+- The conversation should feel like two people genuinely looking at / listening to the same thing.
+
+Good patterns:
+- "Check this out — finally got a decent shot of the sunset over the harbor" + <image>
+- "Been messing around with this riff all afternoon, what do you think?" + <audio>
+- "This is the clip I was telling you about — watch what happens at the end" + <video>
+
+【Guidelines】
+1. Generate 8-15 rounds (round = user message + assistant response)
+2. Spread the {n_assets} assets across the conversation — don't cluster them
+3. Include rounds without any assets — small talk, follow-ups, tangents
+4. Match the persona's conversation style
+5. Make conversations rich: users share context, background, reasoning, emotions
+6. Assistants give detailed responses with follow-up questions
+
+【Output Format】
+```json
+{{
+  "session_id": "{session_id}",
+  "date": "{date}",
+  "dialogues": [
+    {{
+      "round": "{session_id}:1",
+      "user": "message text with <image>/<audio>/<video> tags where assets are shared",
+      "assistant": "response text",
+      "mm": [
+        {{
+          "type": "image",
+          "mm_id": "D0001_image_0"
+        }}
+      ]
+    }},
+    {{
+      "round": "{session_id}:2",
+      "user": "message without media",
+      "assistant": "response"
+    }}
+  ],
+  "summary": "Session summary — describe topics discussed, user intent, decisions. Keep multimodal mentions neutral."
+}}
+```
+
+Rules:
+- `round`: "{session_id}:N" starting from 1
+- `mm` field: ONLY present in rounds with multimodal assets. Omit entirely otherwise.
+- `mm_id`: use the exact mm_id provided in the asset list above.
+- `type`: must match the asset type (image/audio/video).
+- Do NOT include `description`, `url`, or `evidence_id` fields in mm items.
+- Every asset from the list MUST appear exactly once.
+- `summary`: neutral language for media mentions ("shared an audio file", "sent an image"). No content description.
+
+Now generate the dialogue for session {session_id}.

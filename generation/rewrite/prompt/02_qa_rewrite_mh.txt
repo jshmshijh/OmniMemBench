@@ -1,0 +1,235 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, generate a question that requires integrating multiple independent information sources (evidence hops) to answer. Target task type: **MH (Multi-Hop)**.
+
+Generate exactly 5 questions using the question session ID and its session summary to construct unambiguous references.
+
+## SUBTYPES
+
+| Subtype | Definition | Construction | Difficulty Requirement | Common Errors |
+|---------|-----------|--------------|----------------------|---------------|
+| **Conditional filtering** | Filter candidates based on user-defined conditions | Build compound conditions (AND/OR/NOT) with at least one near-miss candidate that barely passes or fails. Include at least one exception rule. | Near-miss + exception rule mandatory | ✗ Single-threshold binary check ("Is X > 9?"). ✗ Binary conditions without interaction |
+| **Counting/Aggregation** | Count or aggregate across sources with user-defined units | Multimodal provides raw counts or categories; text hops define user-specific rules that change "what counts as one unit" (e.g., exclusions, multipliers, grouping rules). Simple "count all X" is forbidden. | User-defined counting rule mandatory | ✗ Small-number multiplication (4×3=12). ✗ Obvious category membership ("pigeons are urban wildlife"). ✗ Raw count directly from multimodal without rule application |
+| **Comparison** | Compare objects/events based on user-defined dimensions | Multimodal provides raw attribute values for ≥2 objects; text hops define the user's custom formula/weighting to derive a comparison metric. Direct attribute comparison is forbidden. | Derived dimension mandatory | ✗ Direct attribute comparison ("which is taller?"). ✗ Single-step lookup. ✗ Standard formulas (domain knowledge alone suffices) |
+
+## CORE PRINCIPLE
+
+**Multimodal content provides simple perceptual facts (counts, colors, positions, categories, sounds). Difficulty comes from text hops defining user-specific rules that make these simple facts non-straightforward to reason about.** Text hops provide general rules established before the multimodal content — they never reference the specific multimodal content.
+
+## RULES
+
+### Question Design
+
+**Q1. Strong necessity test**: Remove any hop → answer becomes undeterminable or **different**. If removing a hop merely removes context but the answer stays the same, redesign.
+
+**Q2. Distractor complexity**: Every question must include at least one plausible wrong answer resulting from a reasonable but incomplete reasoning path — not just from skipping a hop, but from applying a related-but-wrong rule. Identify this in reasoning.
+
+**Q3. Natural conditions**: User-defined rules/thresholds/criteria must feel realistic for the persona.
+
+**Q4. Perceptibility**: Multimodal evidence must be directly perceivable.
+- ✓ Allowed: counts, presence/absence, relative comparisons, colors, actions, sequences, instrument types, emotional tone, general tempo (fast/slow)
+- ✗ Forbidden: BPM, frame rate, resolution, exact duration in seconds, decibel levels, Hz
+
+**Q5. Surface contradiction (≥2 of 5)**: At least 2 questions must contain hops that appear contradictory on the surface but are reconcilable via scope/context distinction. Reasoning must show the wrong answer from failing to distinguish scope.
+
+**Q6. Common-sense resistance**: The answer must NOT be derivable from general domain knowledge combined with the multimodal perception alone. The user-defined rules in text hops must be essential — without them, the answer is indeterminate or different.
+
+### Evidence Chain
+
+**E1. Hop count**: ≥4 hops per question (recommended 6). Each question must have at least one multimodal hop and at least 2 text hops with independent information.
+
+**E2. Independent multimodal hops**: Each multimodal file is an independent hop with its own `mm_id` (string). Do NOT combine multiple multimodal files into a single hop. Each multimodal hop has its own `type`, `session_id`, `timestamp`, `evidence`, and `mm_id`.
+
+**E3. Temporal safety**: All text hops must come from sessions with timestamps ≤ the multimodal hop's session timestamp. When multiple multimodal hops exist, check each independently. This prevents information leakage.
+- ✓ text S3 (Jan 3) → text S4 (Jan 4) → image S5 (Jan 5)
+- ✓ text S3 (Jan 3) → video S5 (Jan 5) → text S4 (Jan 4) [S4 ≤ S5 ✓]
+- ✗ image S5 → text S7 discussing what S5's image shows
+
+**E4. Multimodal irreplaceability**: Text hops provide rules/criteria/context only — never perceptual facts. The perceptual judgment must come from the multimodal content. If a text hop states "track has picking and strumming" when that is the key multimodal fact, redesign.
+
+**E5. Hop necessity**: Every hop must be load-bearing. In reasoning, state: "If hop N removed → [specific wrong answer]."
+
+**E6. Evidence naturalism**: Write evidence as naturalistic dialogue fragments. At most **1 text hop per question** may be a direct rule statement (`[explicit]`); all others must embed info as incidental remarks (`[incidental]`). Tag each in reasoning.
+
+**E7. Session grounding**: Each hop must include `session_id` and `timestamp` (YYYY-MM-DD). Only use sessions listed in Available Sessions.
+
+**E8. Evidence quality**: 
+- **Self-contained**: Each text hop must name its subject explicitly. "adding three more to make it 4" → bad (what?). "adding three more stringed instruments to make it 4" → good.
+- **Domain-coherent**: Rules/criteria in evidence must sound natural for the persona. If the multimodal content is from a mismatched domain (e.g., food photo for a gallery curator), abstract to domain-appropriate properties (color tone, texture, reflectivity) rather than referencing the source domain directly (seasoning, herbs).
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions.
+- ✓ "the SFX sampler I uploaded during the comedy scoring session"
+- ✗ "the audio with three sound effects"
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions.
+
+## EXAMPLES
+
+### Example 1: Conditional Filtering (surface contradiction, 4 hops)
+
+**Input:**
+- Caption: "Q1_audio_0 [audio]: Three consecutive sound effects. The first is a brief, sharp rasp (~0.7s). The second is a sustained hum (~2.4s). The third is a quick metallic ping (~0.9s) followed by a fading echo."
+- Current Session (S4, 2025-01-04): User uploads SFX sampler during comedy scoring session for punchline timing library.
+
+**Output:**
+```json
+{
+  "modalities": ["audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "Which sounds from the SFX sampler I uploaded during the comedy scoring session qualify as 'quick hits' for the punchline timing library?",
+      "short_answer": "First and third sounds",
+      "full_answer": "Both the first sound (brief sharp rasp) and third sound (quick metallic ping) qualify. The first is clearly brief. The third is a near-miss: the ping itself is quick, but it has a fading echo — your exception rule states that trailing echoes/reverb are excluded from duration assessment, so only the core transient counts, and the ping qualifies. The second sound (sustained hum) is too long. Without the echo exception rule, the third sound would be disqualified.",
+      "task_type": "MH",
+      "task_subtype": "Conditional filtering",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "User was explaining their comedy sound library to a collaborator: 'I've been organizing sounds by timing category — quick hits, medium builds, and slow burns, each has different rules for what qualifies'"},
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was editing a comedy reel and said 'for punchline hits I need something that's in and out — if it lingers at all, the timing is ruined'"},
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was discussing a reverb-heavy sample and said 'actually, echoes don't count — I only care about the initial attack, if the transient is quick then trailing reverb or echo is whatever, I can trim that'"},
+        {"type": "audio", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "Audio containing three consecutive sound effects with different characteristics", "mm_id": "Q1_audio_0"}
+      ],
+      "reasoning": "The third sound is the critical boundary case: quick ping + fading echo. Surface contradiction: Hop 2 ('if it lingers at all') vs hop 3 ('echoes don't count') — reconcilable because 'lingering' refers to core transient, not echo tail. A model reading hop 2 literally without hop 3 → wrong answer 'first sound only.' Hop necessity: without hop 1 (context), unclear what 'quick hits' means in user's system; without hop 2 (threshold), 'brief' is undefined; without hop 3 (exception), third sound disqualified; without hop 4 (audio), candidates unknown. Plausible wrong answer: 'Only the first sound' (skipping hop 3 or misapplying hop 2's scope). Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental]. ✓ Multimodal irreplaceability: sound characteristics only from audio; text hops provide criteria only. ✓ Temporal safety: S2 ≤ S4, S3 ≤ S4 for all text hops. ✓"
+    }
+  ]
+}
+```
+
+---
+
+### Example 2: Counting/Aggregation (user-defined counting rule, 4 hops)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A retail shelf display with eight perfume bottles. Five have gold caps, three have silver caps. Two of the gold-cap bottles have a small red 'TESTER' sticker on the base. One silver-cap bottle is visibly half-empty."
+- Current Session (S6, 2025-01-06): User shares shelf photo during inventory count for quarterly report.
+
+**Output:**
+```json
+{
+  "modalities": ["image"],
+  "rewrites": [
+    {
+      "rewrite_id": 2,
+      "rewritten_question": "Based on the shelf photo from the quarterly inventory count, how many 'sellable units' are on display according to my counting rules?",
+      "short_answer": "4",
+      "full_answer": "4 sellable units. The shelf has 8 bottles total. Per your rules: tester bottles are excluded entirely (−2 gold-cap testers = 6 remaining). Bottles below half-fill are counted as 0.5 units, not 1 (the half-empty silver-cap bottle = 0.5). However, your rounding rule says final count is always rounded down to whole units. So: 5 full + 0.5 = 5.5, rounded down = 5. Wait — the 6 remaining after removing testers: 3 gold-cap full + 2 silver-cap full + 1 silver-cap half = 3 + 2 + 0.5 = 5.5 → rounded down = 5. Actually, re-checking: 8 total − 2 testers = 6. Of those 6: 3 gold-cap (full) + 3 silver-cap (2 full + 1 half-empty). So 3 + 2 + 0.5 = 5.5 → 5. Plausible wrong answer: 6 (forgetting the half-fill rule) or 8 (ignoring tester exclusion).",
+      "task_type": "MH",
+      "task_subtype": "Counting/Aggregation",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "User was training a new employee: 'when you do inventory, testers don't count at all — if it has the red sticker, skip it completely, those aren't sellable'"},
+        {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User was discussing inventory discrepancies with a colleague: 'the tricky part is partial bottles — if it's below half I count it as half a unit, not a full one, otherwise we overreport'"},
+        {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User added in the same conversation: 'and we always round down the final number, corporate wants conservative estimates'"},
+        {"type": "image", "session_id": "S6", "timestamp": "2025-01-06", "evidence": "Shelf display showing bottles with different cap colors, tester stickers, and fill levels", "mm_id": "Q1_image_0"}
+      ],
+      "reasoning": "Raw count from image is 8. User rules transform this: (1) exclude testers (−2), (2) half-fill → 0.5 units, (3) round down. Model must perceive from image: total count, tester stickers, fill level. Text hops provide the counting rules only — never state what's on the shelf. Hop necessity: without hop 1, testers included → 7.5 → 7; without hop 2, half bottle = 1 → 6; without hop 3, 5.5 not rounded → ambiguous; without hop 4, can't see bottles/stickers/fill levels. Plausible wrong answer: 6 (applying tester rule but not half-fill rule). Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental]. ✓ Multimodal irreplaceability: bottle count, tester identification, fill level all from image only. ✓ Temporal safety: S2 ≤ S6, S4 ≤ S6. ✓"
+    }
+  ]
+}
+```
+
+---
+
+### Example 3: Comparison (derived dimension, 5 hops with separate multimodal)
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A list of financial accounts: Accounts payable $10,075; Accounts receivable $15,500; Cash $64,575; Common stock $31,000; Fees earned revenue $82,000; Operating expense $38,000; Supplies $5,000. Q1_audio_0 [audio]: CFO speaking in a meeting: 'We flagged operating expense this quarter because of that vendor contract renegotiation — the raw number looks fine but the exposure relative to our liquid assets is what worries me.'"
+- Current Session (S5, 2025-01-05): User uploads trial balance and CFO briefing audio during CPA audit session.
+
+**Output:**
+```json
+{
+  "modalities": ["image", "audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 3,
+      "rewritten_question": "Based on the trial balance and CFO briefing I uploaded during the CPA audit session, which account has the highest 'risk weight' according to my materiality framework?",
+      "short_answer": "Operating expense",
+      "full_answer": "Operating expense, with a risk weight of 1.52. Risk weight = (account balance / total current assets) × category multiplier. Total current assets = Cash + AR + Supplies = $64,575 + $15,500 + $5,000 = $85,075. Operating expense: ($38,000 / $85,075) × 3.4 = 1.52. Fees earned: ($82,000 / $85,075) × 1.0 = 0.96. Operating expense wins despite not having the highest raw balance — the CFO's concern in the audio aligns with this finding.",
+      "task_type": "MH",
+      "task_subtype": "Comparison",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was explaining their framework to a junior colleague: 'risk weight isn't just the balance — you take the balance, divide by total assets, then multiply by the category multiplier, and that's your number'"},
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User was assigning multipliers: 'expenses get 3.4 because that's where the fraud risk lives, revenue is 1.0, equity 1.2, liabilities 2.0 — I've been using these since my first audit'"},
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "User clarified when asked: 'total assets for this formula means current assets only — cash, receivables, supplies, that's it, not the whole balance sheet'"},
+        {"type": "image", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "Trial balance listing account names and dollar amounts", "mm_id": "Q1_image_0"},
+        {"type": "audio", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "CFO audio discussing concern about operating expense relative to liquid assets", "mm_id": "Q1_audio_0"}
+      ],
+      "reasoning": "Direct comparison of raw balances gives 'Fees earned' ($82,000) — plausible wrong answer. Correct answer requires: (1) formula from hop 1, (2) multipliers from hop 2, (3) denominator definition from hop 3, (4) actual numbers from image hop 4, (5) CFO context from audio hop 5. Surface contradiction: CFO says 'raw number looks fine' (seems like operating expense is ok) but the framework's relative measure flags it — reconcilable because 'fine' refers to absolute value, not risk weight. Hop necessity: without hop 1, no formula; without hop 2, no multipliers; without hop 3, wrong denominator (using all accounts); without hop 4, no numbers; without hop 5, no CFO context. Evidence naturalism: hop 1 [incidental], hop 2 [explicit], hop 3 [incidental]. ✓ Multimodal irreplaceability: dollar amounts only from image; CFO's specific concern only from audio. ✓ Temporal safety: S3 ≤ S5 for all text hops. ✓"
+    }
+  ]
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Count**: Exactly 5 questions.
+2. **Hops**: ≥4 per question (recommended 6). Each multimodal file is a separate hop. Hop counts vary across questions.
+3. **Subtypes**: ≥2 different subtypes across 5 questions.
+4. **Temporal safety**: Every text hop's session timestamp ≤ each multimodal hop's session timestamp.
+5. **Multimodal irreplaceability**: Perceptual facts come only from multimodal content. No text hop restates them.
+6. **Necessity**: Each hop removal → specific wrong answer stated in reasoning.
+7. **Difficulty**: Every question has a boundary case / ambiguous membership / derived dimension (per subtype).
+8. **Distractor**: Every question has a plausible wrong answer from incomplete reasoning.
+9. **Surface contradiction**: ≥2 of 5 questions have apparently contradictory hops reconcilable via scope.
+10. **Naturalism**: ≤1 `[explicit]` text hop per question. Others `[incidental]`.
+11. **References**: Event-context only. Unambiguous across sessions.
+12. **short_answer**: Contains only the answer — no qualifiers or reasoning.
+13. **Independent multimodal hops**: Each multimodal file is a separate hop with its own `mm_id` (string). No combined types like `image+audio`.
+14. **Common-sense resistance**: Answer requires user-defined rules from text hops, not derivable from domain knowledge + multimodal alone.
+15. **Evidence quality**: Each text hop is self-contained (no missing subjects) and domain-coherent (no out-of-place terminology for the persona).
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**IMPORTANT:** Session summaries are reference only. Do not copy from them into evidence. Evidence must be grounded in the actual multimodal content.
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "...",
+      "short_answer": "...",
+      "full_answer": "...",
+      "task_type": "MH",
+      "task_subtype": "Conditional filtering | Counting/Aggregation | Comparison",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "..."},
+        {"type": "video", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "...", "mm_id": "Q1_video_0"}
+      ],
+      "reasoning": "..."
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `evidence_chain`: Array of ≥4 hops (recommended 6). Each multimodal file is an independent hop.
+  - `type`: `"text"` | `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop, never combined.
+  - `session_id`, `timestamp`: Must match available sessions
+  - `evidence`: Raw facts as dialogue fragments. Do not describe the hop's role in reasoning.
+  - `mm_id`: Required for multimodal hops. Always a string (e.g., `"Q1_image_0"`). Copy exactly from input caption.
+- `reasoning`: Must include: (a) hop necessity with specific wrong answers, (b) boundary case / non-obvious link identification, (c) plausible wrong answer, (d) naturalism tags per text hop, (e) multimodal irreplaceability check, (f) temporal safety check, (g) surface contradiction explanation (when applicable)
+
+Now generate 5 MH questions.

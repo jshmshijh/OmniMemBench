@@ -1,0 +1,228 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, create questions where the model must first perceive the multimodal content, then combine it with dialogue history, and ultimately discover that the information needed to fully answer is unavailable. Target task type: **REF (Answer Refusal)**.
+
+**Core requirement**: Every REF question must make multimodal perception a necessary step in the reasoning path. If a question can be judged as unanswerable without engaging with the multimodal content, it is invalid. The model's reasoning must follow: perceive what the media shows/sounds like → search dialogue history for related context → discover that a critical piece of information is missing or uninferable.
+
+Generate exactly 5 questions. Use the question session ID and its session summary to construct unambiguous references.
+
+## SUBTYPES
+
+| Subtype | Definition | Perception Role | short_answer | Construction |
+|---------|-----------|----------------|-------------|-------------|
+| **Never mentioned** | A specific detail was never stated in any session | Model perceives feature X from media, finds dialogue discussing X, but a critical instance-level detail about X was never provided | "Not mentioned" | Ask about an instance-level detail (a threshold, a recommendation, an exact criterion) that is closely tied to what is perceivable in the media. Dialogue must contain related discussion that creates temptation. |
+| **Insufficient information** | Related information exists but is not enough to determine the answer | Model perceives feature X from media AND finds partial information about X in dialogue, but neither source alone nor both combined are sufficient | "Insufficient information" | Identify a gap where perception provides one part (e.g., "the pace sounds steady") and dialogue provides another part (e.g., "there's a minimum tempo"), but the two cannot be combined to reach a conclusion. |
+| **Out of scope** | Requires information that inherently cannot be inferred from the content | Model perceives feature X, but the question asks about something beyond what any perception of this modality could reveal | "Cannot be inferred" | Ask about creator intent, events outside the content boundary, invisible identity, or prior external feedback — things that are fundamentally unobservable from the media itself. |
+
+### Modality Perception Reference
+
+Use this table as guidance for what models can and cannot extract from each modality. Questions should be designed around these boundaries.
+
+| Modality | Can perceive | Cannot infer |
+|----------|-------------|-------------|
+| **Image** | Objects, colors, composition, spatial layout, text in image, emotional tone | Photographer identity, events before/after, creator intent, exact physical measurements, content outside the frame |
+| **Video** | Actions, scene transitions, temporal order, object motion, expressions | Events before/after clip, off-camera activity, editor's intent, unshown context |
+| **Audio (music)** | Melody, rhythm, instrumentation, dynamics, mood, key/mode | Composer intent, exact BPM, recording equipment, performer identity if unstated |
+| **Audio (speech)** | Spoken words, tone, emotional state, language, speaker count | Speaker identity if unintroduced, unexpressed thoughts, referenced but undescribed events |
+| **Audio (sound)** | Sound type, temporal pattern, relative loudness, co-occurring sounds | Exact source location, causal chain if not obvious, off-recording context |
+
+## RULES
+
+### Question Design
+
+**Q1. Multimodal necessity**: Remove the multimodal content from the question context — if the question is still answerable as "unanswerable," the question is invalid. The multimodal content must provide information that is essential to understanding what is being asked or why it cannot be answered.
+
+**Q2. Difficulty gate**: Every REF question must pass: *Would a strong model be tempted to answer using what it perceived from the media, world knowledge, or related dialogue context, rather than refusing?* If not, redesign.
+
+**Q3. Instance-level gap**: The missing piece must be instance-level information only the user could know (a specific threshold, a personal recommendation, an exact criterion). General domain expertise must NOT be sufficient to fill the gap.
+
+**Q4. Multi-step discovery**: Simple one-hop absence ("X is not mentioned") is forbidden. The question must require at least two reasoning steps before the gap is discovered.
+
+**Q5. Dialogue-history temptation (≥2 of 5)**: At least 2 questions must derive temptation from related but insufficient information present in conversation history — the dialogue contains discussion of the relevant topic, making the model believe it has enough context, but a critical detail is missing.
+
+**Q6. Perceptibility**: When describing what IS available, use perceivable attributes only.
+- ✓ Allowed: counts, presence/absence, colors, actions, relative comparisons, emotional tone
+- ✗ Forbidden: exact duration in seconds, BPM, frame rate, resolution, decibel levels
+
+### Evidence Chain
+
+**E1. Hop count**: ≥4 hops per question (recommended 6). The hops provide relevant context that looks sufficient while revealing what IS available vs. what is missing.
+
+**E2. Multimodal hop evidence format**: Each multimodal hop's `evidence` field must describe (a) what is perceivable from this content, and (b) what specific information remains unavailable despite this perception. Both parts must be present.
+
+**E3. Temporal safety**: All text hops must come from sessions with timestamps ≤ the multimodal hop's session timestamp. When multiple multimodal hops exist, check each independently.
+- ✓ text S3 (Jan 3) → image S5 (Jan 5)
+- ✗ text S7 discussing what S5's image shows → image S5
+
+**E4. Evidence naturalism**: Write evidence as naturalistic dialogue fragments. Tag each text hop as `[explicit]` or `[incidental]` in reasoning. At most **1 text hop per question** may be `[explicit]`.
+
+**E5. Session grounding**: Each hop must include `session_id` and `timestamp` (YYYY-MM-DD). Only use sessions listed in Available Sessions.
+
+**E6. Independent multimodal hops**: Each multimodal file is an independent hop with its own `mm_id` (string). Do NOT combine multiple multimodal files into a single hop. Each multimodal hop has its own `type`, `session_id`, `timestamp`, `evidence`, and `mm_id`.
+
+**E7. Evidence quality**: 
+- **Self-contained**: Each text hop must name its subject explicitly. "adding three more to make it 4" → bad (what?). "adding three more stringed instruments to make it 4" → good.
+- **Domain-coherent**: Rules/criteria in evidence must sound natural for the persona. If the multimodal content is from a mismatched domain (e.g., food photo for a gallery curator), abstract to domain-appropriate properties (color tone, texture, reflectivity) rather than referencing the source domain directly (seasoning, herbs).
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions.
+- ✓ "the skull X-ray I shared during the ER module review"
+- ✗ "the X-ray showing a fracture line"
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions.
+
+### Distinction from ADV
+
+- **REF**: No sufficient information exists to answer the question.
+- **ADV**: Relevant information exists and contradicts a false claim.
+
+## EXAMPLES
+
+### Example 1: Never Mentioned — Image + dialogue-history temptation
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A skull X-ray with a red arrow pointing to the temporal region, showing a linear fracture line."
+- Current Session (S14, 2025-02-12): User shares a skull X-ray during ER module review to verify clinical accuracy of ER scenario answer key.
+
+**Output:**
+```json
+{
+  "rewrite_id": 1,
+  "rewritten_question": "Based on the fracture visible in the skull X-ray I shared during the ER module review, does this case meet the severity classification threshold my professor specified for the triage exercise?",
+  "short_answer": "Not mentioned",
+  "full_answer": "Not mentioned. The skull X-ray shows a linear fracture of the temporal bone, and previous sessions discussed that the professor sets specific severity classification thresholds for the triage exercise that change each semester. However, the actual threshold values were never stated in any session, so it is impossible to determine whether this fracture meets them.",
+  "task_type": "REF",
+  "task_subtype": "Never mentioned",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S6", "timestamp": "2025-01-25", "evidence": "User was reviewing the ER module syllabus with a study partner: 'the triage section is the hardest part — the professor makes us classify fractures by severity and it changes every semester'"},
+    {"type": "text", "session_id": "S10", "timestamp": "2025-02-01", "evidence": "User was discussing the ER module with a classmate: 'the professor keeps changing the triage thresholds every semester, I need to double-check mine are current'"},
+    {"type": "text", "session_id": "S12", "timestamp": "2025-02-08", "evidence": "User mentioned while studying: 'I've been cross-referencing my notes with the textbook to make sure I'm applying the right fracture classification framework, but the professor's specific cutoffs aren't in the book'"},
+    {"type": "image", "session_id": "S14", "timestamp": "2025-02-12", "evidence": "Skull X-ray showing linear temporal fracture with red arrow — the fracture type is perceivable, but the professor's severity threshold for classifying it in the triage exercise was never stated", "mm_id": "Q1_image_0"}
+  ],
+  "reasoning": "Multimodal necessity: model must perceive the fracture type (linear temporal) from the X-ray to understand what is being classified — without seeing the image, the question would be about an unknown fracture. Two-step discovery: (1) extract fracture characteristics from image, (2) search for professor's severity threshold and find hops 1-3 confirming thresholds exist but discover the actual value was never stated. Temptation from dialogue history: hops 1-3 confirm triage thresholds are relevant and changing, making the model believe it might find the answer. Domain knowledge temptation: model knows standard trauma severity scales (GCS, AIS), tempting it to apply clinical criteria. But the professor's specific threshold is instance-level info never disclosed. Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental]. ✓ Temporal safety: S6 ≤ S14, S10 ≤ S14, S12 ≤ S14. ✓"
+}
+```
+
+### Example 2: Insufficient Information — Audio (music) + partial info from both perception and history
+
+**Input:**
+- Caption: "Q1_audio_0 [audio]: A person plays a structured piano piece at a steady pace with consistent dynamics."
+- Current Session (S9, 2025-01-22): User shares a piano recording before conservatory audition to get feedback on technique.
+
+**Output:**
+```json
+{
+  "rewrite_id": 2,
+  "rewritten_question": "In the piano recording I shared before my conservatory audition, does my performance tempo meet the minimum the audition panel requires for that specific piece?",
+  "short_answer": "Insufficient information",
+  "full_answer": "Insufficient information. The recording reveals a piano piece performed at a steady, consistent pace — this provides partial tempo information. Previous sessions confirm that the audition panel sets specific tempo minimums per piece. However, the recording only conveys relative tempo (steady, not dragging) without an exact value, and the panel's specific minimum was never stated, so the comparison cannot be made.",
+  "task_type": "REF",
+  "task_subtype": "Insufficient information",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S3", "timestamp": "2025-01-10", "evidence": "User was discussing audition prep with their teacher: 'I've been practicing the Chopin for weeks, the panel is really particular about tempo on that one'"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-15", "evidence": "User was nervously reviewing audition requirements: 'the panel has specific tempo minimums for each piece — I need to make sure I'm not dragging on the Chopin'"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-18", "evidence": "User mentioned while discussing practice: 'my teacher said I've improved the pacing a lot compared to last month, but she didn't say if it's fast enough for the panel'"},
+    {"type": "audio", "session_id": "S9", "timestamp": "2025-01-22", "evidence": "Structured piano piece at steady pace with consistent dynamics — relative tempo character is perceivable (steady, not rushing or dragging), but exact BPM is not extractable from audio perception, and the panel's required minimum is also unknown", "mm_id": "Q1_audio_0"}
+  ],
+  "reasoning": "Multimodal necessity: model must perceive the tempo character (steady pace) from the audio — without hearing it, the model has no partial tempo information at all. Two-step discovery: (1) perceive that the piece is played at a steady pace, (2) search for the panel's tempo minimum, find hops 1-3 confirming it exists, (3) realize both sides are partial — perception gives qualitative tempo, history confirms a quantitative threshold exists, but neither provides the actual numbers for comparison. Temptation: model perceives 'steady pace' and has conservatory domain knowledge about standard tempi for Chopin pieces — strong temptation to estimate. Hops 1-3 further confirm the threshold is real. But both the exact performance tempo and the panel's cutoff are unknowns. Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental]. ✓ Temporal safety: S3 ≤ S9, S5 ≤ S9, S7 ≤ S9. ✓"
+}
+```
+
+### Example 3: Out of Scope — Video + modality boundary
+
+**Input:**
+- Caption: "Q1_video_0 [video]: A person demonstrates a pottery wheel technique, shaping a clay bowl with steady hand movements over approximately 30 seconds."
+- Current Session (S11, 2025-02-05): User shares a pottery video to document their progress in a ceramics workshop.
+
+**Output:**
+```json
+{
+  "rewrite_id": 3,
+  "rewritten_question": "In the pottery video I shared to document my ceramics workshop progress, what specific feedback did my instructor give about the shaping technique I demonstrated?",
+  "short_answer": "Cannot be inferred",
+  "full_answer": "Cannot be inferred. The video shows a specific shaping technique with steady hand movements on the pottery wheel. Previous sessions mention that the instructor gives individual feedback after each session. However, the instructor's feedback is an event that occurred outside the video's content boundary — it is neither visible nor audible in the recording, and was never relayed in any session.",
+  "task_type": "REF",
+  "task_subtype": "Out of scope",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S8", "timestamp": "2025-01-30", "evidence": "User was chatting about the ceramics workshop: 'the instructor gives individual feedback after each session, I'm curious what she'll say about my centering technique'"},
+    {"type": "text", "session_id": "S10", "timestamp": "2025-02-03", "evidence": "User mentioned to a friend: 'I've been filming my wheel work so I can review it later — the instructor watches but I never record what she says'"},
+    {"type": "video", "session_id": "S11", "timestamp": "2025-02-05", "evidence": "Person shaping a clay bowl on pottery wheel with steady hand movements — the technique is visible, but instructor feedback occurred outside the recording and was never stated in any session", "mm_id": "Q1_video_0"}
+  ],
+  "reasoning": "Multimodal necessity: model must see the specific technique demonstrated in the video to understand what feedback is being asked about — without the video, the question is about an unknown technique. Two-step discovery: (1) perceive the shaping technique from the video, (2) search for instructor feedback on this technique, (3) find hop 1 confirming feedback exists and hop 2 confirming it's never recorded, (4) recognize that the feedback is fundamentally outside the video's content boundary. Temptation: model can clearly see the technique and has pottery domain knowledge — tempted to evaluate the technique and generate plausible instructor feedback. But the actual feedback is an external event never captured. Evidence naturalism: hop 1 [incidental], hop 2 [incidental]. ✓ Temporal safety: S8 ≤ S11, S10 ≤ S11. ✓"
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Count**: Exactly 5 questions.
+2. **Subtypes**: Use different subtypes across questions when possible.
+3. **Multimodal necessity (Q1)**: For each question, confirm: if the multimodal content were removed, could the model still determine the question is unanswerable? If yes, redesign.
+4. **Hops**: ≥4 per question (recommended 6). Each multimodal file is a separate hop.
+5. **Multimodal hop evidence**: Each multimodal hop describes both what is perceivable and what remains unavailable.
+6. **Temporal safety**: Every text hop's session timestamp ≤ each multimodal hop's session timestamp.
+7. **Difficulty**: Every question would tempt a strong model to answer rather than refuse.
+8. **Instance-level gap**: The missing piece cannot be filled by domain knowledge alone.
+9. **Multi-step**: Gap requires ≥2 reasoning steps to discover.
+10. **Dialogue temptation**: ≥2 of 5 questions derive temptation from conversation history.
+11. **Naturalism**: Evidence is dialogue fragments. Text hops tagged `[explicit]` or `[incidental]`. ≤1 `[explicit]` per question.
+12. **References**: Event-context only. Unambiguous across sessions.
+13. **short_answer matches subtype**: "Not mentioned" / "Insufficient information" / "Cannot be inferred".
+14. **Not ADV**: Questions ask for absent info, not contradictions with false claims.
+15. **Independent multimodal hops**: Each multimodal file is a separate hop with its own `mm_id` (string).
+16. **Evidence quality**: Each text hop is self-contained and domain-coherent.
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**IMPORTANT:** Session summaries are reference only. Do not copy from them into evidence. Evidence must be grounded in the actual multimodal content.
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["audio"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "...",
+      "short_answer": "Not mentioned | Insufficient information | Cannot be inferred",
+      "full_answer": "...",
+      "task_type": "REF",
+      "task_subtype": "Never mentioned | Insufficient information | Out of scope",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "..."},
+        {"type": "video", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "...", "mm_id": "Q1_video_0"}
+      ],
+      "reasoning": "..."
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `short_answer`: Must match subtype — "Not mentioned" | "Insufficient information" | "Cannot be inferred"
+- `evidence_chain`: Array of ≥4 hops (recommended 6).
+  - `type`: `"text"` | `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop, never combined.
+  - `session_id`, `timestamp`: Must match available sessions
+  - `evidence`: For text hops: naturalistic dialogue fragment. For multimodal hops: describe what is perceivable and what remains unavailable.
+  - `mm_id`: Required for multimodal hops. Always a string (e.g., `"Q1_image_0"`). Copy exactly from input caption.
+- `reasoning`: Must include: (a) multimodal necessity explanation, (b) multi-step discovery path, (c) temptation source (perception + domain knowledge and/or dialogue history), (d) why the gap is unfillable, (e) naturalism tags per text hop, (f) temporal safety check
+
+Now generate 5 REF questions.

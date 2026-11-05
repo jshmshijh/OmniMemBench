@@ -1,0 +1,274 @@
+You are generating a realistic multi-turn dialogue for a multimodal conversational memory benchmark.
+
+【Task】
+Given a session's dialogue plan (phases + evidence), persona, and previous session context, generate the complete dialogue that:
+- Feels like a real person chatting with an AI assistant
+- Naturally embeds all required evidence
+- Follows the phase structure but expands into concrete rounds
+
+【Meta-Level Understanding】
+
+The dialogue you generate will become a TEST INPUT for a multimodal memory benchmark:
+
+1. A tested model receives ALL session dialogues (every word from both user and assistant) as memory context.
+2. It also receives the actual multimodal files (images, audio, video) embedded in those dialogues.
+3. It is then asked a question requiring cross-session reasoning and/or media perception.
+
+**The dialogue text is the exam paper, not a real conversation.** Two categories of information must be protected:
+
+- **Category A — Multimodal perceptual content:** What a media file depicts/sounds like/shows. Must ONLY be obtainable by perceiving the actual media. Dialogue text must not describe, summarize, characterize, or react to specific media content.
+- **Category B — Final assembled answers:** Many questions require collecting evidence fragments from multiple sessions and/or combining text with media perception. This final conclusion must NOT appear anywhere in the dialogue. Individual evidence fragments scattered across sessions are fine — but no character should state the assembled result.
+
+**Critical distinction:** Text evidence carrying answer-relevant information IS allowed — it is deliberately planted across sessions. What is NOT allowed is anyone performing the assembly and stating the conclusion.
+
+【Previous Sessions】
+{context}
+
+【Persona】
+{persona}
+
+【Current Session】
+{session_info}
+
+【Dialogue Plan】
+{dialogue_plan}
+
+**CRITICAL CONSTRAINT**: You MUST use ONLY the evidence pieces listed in the dialogue plan above. Each evidence piece has a specific evidence_id. When generating multimodal mm items, the evidence_id field MUST exactly match one from the dialogue plan. DO NOT create, invent, or hallucinate any additional evidence or evidence_ids.
+
+---
+
+【Informed Perception Model】
+
+For each multimodal evidence piece you have the **caption** (actual content) and the **question** (benchmark question it serves).
+
+- Use the caption to write natural, consistent dialogue — authentic backstory, coherent motivation, compatible follow-ups.
+- Use the question to identify answer-critical terms that must NOT appear in dialogue text.
+- **The precision test:** "If I delete the `<image>`/`<audio>`/`<video>` tag and a reader sees only the text — can they answer the associated question?" If yes → leakage. If no → correct.
+
+---
+
+【User Messages — Backstory + Intent + Action】
+
+The user contributes what the media cannot: WHY they're sharing, what happened before, how they feel, what they want the AI to do. Use caption knowledge to write richer context AROUND the media, not description OF the media.
+
+| Allowed | Not Allowed |
+|---|---|
+| Backstory consistent with the media's theme | Describe what media looks/sounds like |
+| Authentic motivation for sharing | Words that directly answer the question |
+| Natural follow-up requests (if not answer-critical) | Bridge text + mm evidence with connecting language |
+| | Ask assistant to evaluate/classify/judge media |
+| | Ask a question equivalent to the benchmark question |
+
+Good: "Check this out — been working on this all week" + `<image>`
+Bad: "Here's the guitar track I recorded" + `<audio>` (if "guitar" is answer-critical)
+
+---
+
+【Assistant Responses — The Critical Leakage Zone】
+
+The assistant's words are part of the exam paper. If the assistant states a conclusion that answers the benchmark question, the exam is ruined.
+
+| Assistant SHOULD | Assistant MUST NOT |
+|---|---|
+| Acknowledge receipt, pivot to helping | Perceptual narration ("I can see that...") |
+| Ask about user's GOALS and CONTEXT | Qualitative judgments ("looks great", "nice composition") |
+| Give advice, suggest next steps | Veiled descriptions ("captures the energy") |
+| Connect to previous conversations | Any statement revealing what media contains |
+| Operational actions ("Filed it", "Noted") | Evaluate/classify/judge media against any criteria |
+
+**No Judgment Rule (CRITICAL):** The assistant MUST NOT evaluate, classify, verify, grade, or judge multimodal content against any rules, criteria, or standards. This is the single most common source of benchmark-breaking leakage.
+
+- ✗ "Yes, this meets the bilateral grip criteria"
+- ✗ "This would be classified as a primary kinetic stressor"
+- ✓ "Got it — filed under the current module. Want me to flag anything?"
+- ✓ "Noted. Should I add any tags, or just keep it as-is?"
+
+**Handling "what do you think?" requests:** Redirect to PROCESS and NEXT STEPS, not content evaluation.
+- ✗ "The colors are vibrant and the subject really pops"
+- ✓ "Before I give detailed feedback — what specifically are you unsure about? Technical critique, or overall direction?"
+
+---
+
+【Anti-Leakage Checklist】
+
+Before finalizing, verify each step:
+
+1. **Identify answer-critical terms** from each question. Do they appear anywhere in dialogue text? → Remove.
+2. **Trace judgments**: Does the assistant make any evaluative statement about media? Confirm/deny criteria compliance? State any classification? → Rewrite to operational response.
+3. **Check question echoing**: Does any round contain a question equivalent to the benchmark question? → Rewrite.
+4. **Check combinatorial leakage**: When text + mm evidence from the same question appear in nearby rounds, is there bridging language? → Remove bridges, use independent framing.
+5. **Check summary**: Can a reader of the summary answer the question without seeing media? → Neutralize.
+6. **Check final-answer assembly**: Does any single round state the assembled conclusion? → Remove.
+
+---
+
+【Guidelines】
+
+1. **Expanding Phases into Rounds**
+   - Each phase → 2-4 rounds (round = one user message + one assistant response)
+   - Phases with evidence need enough rounds to embed naturally
+   - Aim for rich, extended exchanges
+
+2. **Evidence Embedding**
+   - Every evidence piece in the plan MUST appear in that phase's rounds
+   - Follow the `integration_hint`
+   - Use the EXACT evidence_id from the dialogue plan
+
+   **Text evidence:** Embed the `content` naturally in conversation. No special tags.
+   **Multimodal evidence:** User shares with `<video>`, `<image>`, or `<audio>` tags inline. Include `evidence_id` and `mm_id` (if available) in the mm item. Do NOT generate a `description` field — auto-injected by system.
+
+3. **Conversation Style**
+   - Match persona's speaking style
+   - Real conversations are messy: topic jumps, incomplete thoughts, tangents
+   - Use contractions, natural phrasing
+   - Make conversations rich and substantive
+
+4. **Continuity and Temporal Consistency**
+   - Reference previous sessions naturally
+   - Prefer non-temporal references ("when we set that up") over time-based ones ("yesterday", "last week") unless the date gap genuinely matches.
+
+5. **What NOT to Do**
+   - Don't have user announce evidence formally
+   - Don't make every round about evidence
+   - Don't write stage directions or meta-commentary
+   - Don't create new evidence_ids not in the plan
+   - Don't generate a `description` field in mm items
+   - Don't transfer answer-critical information from caption into dialogue text
+   - Don't have assistant evaluate/judge/classify media content
+   - Don't have anyone ask or answer the benchmark question
+
+---
+
+【Complete Example — Mixed Evidence with Question-Guided Protection】
+
+Plan has:
+- Phase 2: video (Q5_hop1, caption: "Screen recording of a 3D physics simulation showing fluid dynamics with particle collision at 60fps, rendered at 1080p", question: "What resolution and frame rate does the user render their physics simulations at?")
+- Phase 3: text (Q5_hop2, content: "Render uses 60fps at 1080p with high-fidelity physics", same question)
+
+**Output:**
+```json
+{
+  "session_id": "S002",
+  "date": "2025-01-05",
+  "dialogues": [
+    {
+      "round": "S002:1",
+      "user": "Morning! Sorry I disappeared for a few days — work got insane with that deadline. But I finally got around to running that test we talked about. The whole scene needed recalibrating — remember those weird edge issues? I figured it was better to start fresh.",
+      "assistant": "No worries — deadlines happen. Taking the time to recalibrate was probably the smart move. Those edge issues were frustrating, and patching mid-run would've introduced more variables. How long did recalibration take?"
+    },
+    {
+      "round": "S002:2",
+      "user": "About four hours, not as bad as I feared. Once that was sorted, the actual run went smoothly. Here, let me show you — pretty happy with how it turned out <video>",
+      "assistant": "Got it, thanks for sharing. You mentioned focusing on the corner regions — did you change just those, or adjust anything globally? Sometimes fixing one area subtly affects behavior elsewhere. Also, what settings did you go with?",
+      "mm": [
+        {
+          "type": "video",
+          "mm_id": "Q5_video_0",
+          "evidence_id": "Q5_hop1"
+        }
+      ]
+    },
+    {
+      "round": "S002:3",
+      "user": "Only changed the corner regions. For settings, I matched everything to the original prototype — 60fps, 1080p, physics engine set to high-fidelity. Lighting identical too, same HDRI, same intensity. Wanted a clean comparison.",
+      "assistant": "That's exactly right — controlling variables so you can attribute improvements to what you changed. Have you ever tested whether high-fidelity physics makes a noticeable difference compared to medium? Could save render time if medium is good enough."
+    },
+    {
+      "round": "S002:4",
+      "user": "Actually a great idea. I've been assuming high-fidelity is necessary but never tested that. Maybe I'll set up an A/B comparison this weekend.",
+      "assistant": "And try to pick a test case that really stresses the physics — if medium passes the stress test, you can be confident it'll work for normal cases too."
+    }
+  ],
+  "summary": "User returned after a few busy days and shared results from a test run. They spent about four hours recalibrating corner regions where boundary issues occurred. User shared a video of the results. Separately, render settings were discussed — everything kept identical to the original prototype for controlled comparison. The conversation moved to whether high-fidelity physics is always necessary, with plans for an A/B comparison.",
+  "evidence_coverage": {
+    "Q5_hop1": {"round": "S002:2", "speaker": "user"},
+    "Q5_hop2": {"round": "S002:3", "speaker": "user"}
+  }
+}
+```
+
+**Verification:** Video shared with "pretty happy with how it turned out" — zero specs. Answer ("60fps, 1080p") only in S002:3 text evidence. Summary keeps video and settings in separate sentences. ✓
+
+---
+
+【Complete Example — Dangerous Pattern: User Asks for Media Evaluation (AVOID THIS)】
+
+Plan has:
+- Phase 6: image (Q19_hop3, caption: "A woman holding two machetes with pointed tips angled downward in a bilateral grip", question: "Do the held objects in the image qualify as primary kinetic stressors under the rules established in Sessions S22, S24, and S27?")
+
+**✗ BAD — Judgment leakage:**
+```json
+{
+  "round": "S032:1",
+  "user": "I've been reviewing the kinetic stressor classifications again. Here's the image for the next case study — do the held objects qualify as primary kinetic stressors under our rules? <image>",
+  "assistant": "Yes, they do. Based on the bilateral grip and the downward-pointing edges, they are definitively classified as primary kinetic stressors under the framework we established."
+}
+```
+
+Why bad:
+- User asks the benchmark question verbatim (question echoing)
+- Assistant evaluates media against criteria and states the conclusion (judgment leakage)
+- A reader can answer the benchmark question without ever seeing the image
+
+**✓ GOOD — Operational handling:**
+```json
+{
+  "round": "S032:1",
+  "user": "Alright, next batch for the kinetic stressors module. Adding this one to the case study archive. <image>",
+  "assistant": "Got it — filed under the kinetic stressors module. That brings us to twelve cases in that section. Want me to keep a running count, or are you tracking that separately?",
+  "mm": [
+    {
+      "type": "image",
+      "mm_id": "Q19_image_0",
+      "evidence_id": "Q19_hop3"
+    }
+  ]
+}
+```
+
+Why good: User shares with statement of intent ("Adding to archive"), not a question. Assistant responds operationally ("filed", running count), never evaluates content. Reader knows image was filed under kinetic stressors but has no idea whether it qualifies — must see the image and apply rules themselves.
+
+---
+
+【Output Format】
+```json
+{
+  "session_id": "{session_id}",
+  "date": "",
+  "dialogues": [
+    {
+      "round": "{session_id}:1",
+      "user": "user message text, use <video> <image> <audio> tags where assets are shared",
+      "assistant": "assistant response text",
+      "mm": [
+        {
+          "type": "video",
+          "mm_id": "Q41_video_0",
+          "evidence_id": "Q41_hop2"
+        }
+      ]
+    },
+    {
+      "round": "{session_id}:2",
+      "user": "another message without multimodal",
+      "assistant": "response"
+    }
+  ],
+  "summary": "Detailed summary of this session...",
+  "evidence_coverage": {
+    "Q41_hop2": {"round": "{session_id}:1", "speaker": "user"}
+  }
+}
+```
+
+Format rules:
+- `round`: "{session_id}:{number}" starting from 1
+- `mm`: ONLY present in rounds with multimodal assets. Omit entirely if none.
+- `mm_id`: Copy from dialogue plan/context. Do not invent new ids.
+- `evidence_id`: MUST exactly match from dialogue plan (REQUIRED for all mm evidence).
+- Do NOT include `description` field in mm items.
+- `<video>`, `<image>`, `<audio>` tags in text correspond to mm array items in order.
+- `evidence_coverage`: maps every evidence_id to round and speaker. EVERY evidence from plan must appear.
+- `summary`: topics discussed, user intent, decisions made. Keep mm mentions neutral ("shared a file"). Must NOT contain evaluation/classification/judgment of media content.
+
+Now generate the dialogue for session {session_id}.

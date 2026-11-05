@@ -1,0 +1,32 @@
+You are designing a character for multi-session dialogue generation.
+
+【Input】
+{N} multimodal content groups that will be used to generate QA tasks in natural conversations:
+{questions_list}
+
+Domain coverage of these content groups:
+{domain_context}
+
+【Goal】
+Create a character profile so that QA tasks based on these multimodal contents can be naturally embedded into multi-turn dialogues. The character's life situation should make interacting with ALL these contents coherent across different conversation sessions.
+
+Note: QA tasks will be generated later based on the multimodal content. Your job is to find a COHERENT SCENARIO that connects the content topics.
+
+【Output】
+{
+  "primary_domain": "The single most representative domain from the domain coverage list above that best characterizes this set of content groups. Choose the one that most accurately reflects the overall theme.",
+
+  "reason": "3-4 sentences: explain why this specific persona and life situation can naturally connect all {N} content groups. Show how different content topics relate to this character's current life phase and situation.",
+
+  "persona_summary": "3-4 sentences: name, age, occupation, and ONE specific life situation (e.g., 'preparing for parenthood', 'launching a startup', 'relocating internationally') that naturally connects these {N} content groups. The persona should reflect someone who engages with the primary_domain.",
+
+  "conversation_style": "2-3 sentences: tone, question-asking patterns, typical expressions. This will guide how QA tasks are formulated into dialogue."
+}
+
+【Key Principle】
+Focus on the multimodal content TOPICS and their connections, not specific details within the content. Find ONE life situation that naturally justifies encountering these different types of content. QA tasks will be adapted based on this scenario.
+
+【Example】
+persona_summary: "Sarah is a 32-year-old software engineer who just accepted a remote position and is moving from NYC to Austin. She's selling her apartment, finding a new place, setting up a home office, and exploring Austin's lifestyle. This relocation naturally makes her encounter content about real estate, home setup, local culture, and work-life balance."
+
+conversation_style: "Practical and research-oriented. Asks detailed questions with context ('I'm trying to...', 'In my situation...'). Values actionable advice and often asks for comparisons or trade-offs."

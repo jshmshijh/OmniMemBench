@@ -1,0 +1,60 @@
+cff-version: 1.2.0
+message: "If you use OmniMemBench, please cite the paper below."
+title: "OmniMemBench"
+type: software
+version: 1.0.0
+license: Apache-2.0
+repository-code: "https://github.com/jshmshijh/OmniMemBench"
+url: "https://huggingface.co/datasets/jshmsjh/OmniMemBench"
+authors:
+  - given-names: Junhan
+    family-names: Shi
+  - given-names: Qiyi
+    family-names: Wang
+  - given-names: Zhenning
+    family-names: Shi
+  - given-names: Xiongwei
+    family-names: Wu
+  - given-names: Ming
+    family-names: Ma
+  - given-names: Baoqi
+    family-names: Pei
+  - given-names: Yong
+    family-names: Jiang
+  - given-names: Qing
+    family-names: Li
+  - given-names: Weigao
+    family-names: Sun
+  - given-names: Yiran
+    family-names: Zhong
+  - given-names: Steven
+    family-names: Hoi
+preferred-citation:
+  type: conference-paper
+  title: "OmniMemBench: Towards Scalable Evaluation of Long-Term Omni-Modal Agent Memory"
+  collection-title: "NeurIPS 2026 Evaluations and Datasets Track"
+  year: 2026
+  url: "https://github.com/jshmshijh/OmniMemBench"
+  authors:
+    - given-names: Junhan
+      family-names: Shi
+    - given-names: Qiyi
+      family-names: Wang
+    - given-names: Zhenning
+      family-names: Shi
+    - given-names: Xiongwei
+      family-names: Wu
+    - given-names: Ming
+      family-names: Ma
+    - given-names: Baoqi
+      family-names: Pei
+    - given-names: Yong
+      family-names: Jiang
+    - given-names: Qing
+      family-names: Li
+    - given-names: Weigao
+      family-names: Sun
+    - given-names: Yiran
+      family-names: Zhong
+    - given-names: Steven
+      family-names: Hoi

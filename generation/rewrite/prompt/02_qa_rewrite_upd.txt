@@ -1,0 +1,241 @@
+You are generating multimodal QA data for a memory benchmark.
+
+## TASK
+
+Given multimodal content (captions), a user persona, and session context, generate a question that requires identifying a value on a change timeline where that value can only be determined through multimodal perception. Target task type: **UPD (Knowledge Update)**.
+
+Generate exactly 5 questions using the question session ID and its session summary to construct unambiguous references.
+
+## SUBTYPES
+
+| Subtype | Definition | Example Attributes | Construction | Common Errors |
+|---------|-----------|-------------------|--------------|---------------|
+| **State change** | Discrete state transitions | Job, location, equipment, tools | Build a change path (A→B or A→B→A') with fine-grained value similarity. Include reversion or lateral moves. | ✗ High-contrast values (acoustic guitar→synthesizer). ✗ Binary option space |
+| **Numerical update** | Quantity changes | Pet count, instruments, publications | Increment/decrement with intermediate states. Include a near-miss distractor (considering but not purchasing). | ✗ Trivial +1 with no distractors. ✗ Value guessable from common knowledge |
+| **Preference evolution** | Opinion/preference shifts | Favorite tool, preferred genre, workflow choice | Multi-step preference chain through adjacent alternatives. Include tried-then-abandoned steps. | ✗ Opposite-end swaps (folk→hip-hop). ✗ Predictable upgrade direction |
+
+## RULES
+
+### Question Design
+
+**Q1. Ask for a value only obtainable from multimodal perception**: The question must target a specific value on the change timeline that can only be determined by perceiving the multimodal content (seeing the image/video, listening to the audio). The targeted value does not have to be the latest value — it can be any value on the chain, as long as the multimodal content is the sole source for that value.
+
+**Q2. Fine-grained value similarity**: Old and new values must belong to the same fine-grained semantic category.
+- ✓ Nike Vaporfly 2 → Nike Vaporfly 3 (same product line)
+- ✓ post-rock → shoegaze (adjacent subgenres)
+- ✗ acoustic guitar → synthesizer (different families)
+
+**Q3. Answer = multimodal-dependent value**: The correct answer is the value that can only be established through multimodal perception. This may be the latest value, an earlier value, or an intermediate count — whichever the multimodal content uniquely provides.
+
+**Q4. Perceptibility**: Multimodal evidence must be directly perceivable.
+- ✓ Allowed: counts, presence/absence, colors, categories, visible objects, instrument types, emotional tone, music genre/style, spoken content, environmental sounds
+- ✗ Forbidden: exact duration in seconds, BPM, frame rate, resolution, decibel levels
+
+### Evidence Chain
+
+**E1. Hop count**: ≥4 hops per question (recommended 6). Vary counts across the 5 questions.
+
+**E2. Temporal safety (UPD-specific)**: Because UPD tracks state changes over time, text hops MAY come from sessions after the multimodal hop's session. However, no text hop may describe the **perceptual content** of the multimodal item (what is visible/audible). Text hops may only reference the multimodal content by event context.
+- ✓ text S14: "upgraded from my old pair — the new ones feel much better" (describes state change, not image content)
+- ✗ text S14: "those blue and white Nike shoes in the photo I shared — I've switched from those"
+
+**E3. Multimodal as timeline anchor**: The multimodal hop must represent a point on the change timeline (old state, intermediate state, or new state). Its perceptual content must be essential for establishing one value in the chain.
+
+**E4. Multimodal irreplaceability**: No text hop may state what the multimodal content shows. The multimodal provides the perceptual fact; text hops provide state changes and context.
+
+**E5. Multimodal information gap**: Removing all multimodal hops from the evidence chain must make the correct answer undeterminable from text alone. The multimodal content must be the **sole source** for the answer value or for information necessary to derive it. Specifically:
+- Text hops may describe change actions ("switched", "added one more") but must NOT reveal the specific value that the multimodal content provides.
+- If the answer is a count, text hops may describe increments/decrements but must not state the baseline count that only the multimodal reveals.
+- If the answer is a specific item/state, text hops must not name it — they may only reference subsequent changes away from it.
+
+**E6. Conflicting values**: At least 2 hops must contain different values for the same attribute.
+
+**E7. Evidence naturalism**: Write evidence as naturalistic dialogue fragments. At most **1 text hop per question** may be a direct state declaration (`[explicit]`); all others must embed state info as incidental remarks (`[incidental]`). Tag each in reasoning.
+
+**E8. Session date vs. event date**: The `timestamp` field is always the session date. When events occurred at different times, describe the inferred event date in evidence text. The latest value is determined by inferred event dates.
+
+**E9. Session grounding**: Each hop must include `session_id` and `timestamp` (YYYY-MM-DD). Only use sessions listed in Available Sessions.
+
+**E10. Independent multimodal hops**: Each multimodal file is an independent hop with its own `mm_id` (string). Do NOT combine multiple multimodal files into a single hop. Each multimodal hop has its own `type`, `session_id`, `timestamp`, `evidence`, and `mm_id`.
+
+**E11. Distractor hop wording**: Use unambiguous language to distinguish considered-but-not-adopted from actually-adopted:
+- **Considering**: "thinking about", "looking into", "might try"
+- **Adopted**: "switched to", "decided on", "started using", "now using"
+- **Tried-then-abandoned**: "tried X for a week but went back to", "experimented with X but didn't stick"
+
+**E12. Evidence quality**: 
+- **Self-contained**: Each text hop must name its subject explicitly. "adding three more to make it 4" → bad (what?). "adding three more stringed instruments" → good.
+- **Domain-coherent**: Rules/criteria in evidence must sound natural for the persona. If the multimodal content is from a mismatched domain (e.g., food photo for a gallery curator), abstract to domain-appropriate properties (color tone, texture, reflectivity) rather than referencing the source domain directly (seasoning, herbs).
+
+### Reference Style
+
+**R1. Event context only**: Reference multimodal content by occasion, timing, or purpose — never by perceptual descriptions.
+- ✓ "the studio photo I shared during the gear discussion"
+- ✗ "the photo showing four instruments on stands"
+
+**R2. Unambiguous identification**: References must uniquely identify the target session among all available sessions.
+
+### Distribution Requirements (across all 5 questions)
+
+**D1.** ≥2 must include **non-monotonic change** (A→B→A', tried-then-reverted)
+**D2.** ≥2 must include a **distractor hop** (considered but not adopted)
+**D3.** ≥2 must include **temporal mismatch** (event date ≠ session date)
+**D4.** Multimodal positions must include at least: 1 beginning, 1 middle, 1 end
+**D5.** ≥1 must have the latest value in a session that is NOT the chronologically latest session (latest session describes older state retrospectively)
+
+## EXAMPLES
+
+### Example 1: State Change — Reversion (A→B→A'), multimodal at beginning
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A runner on a trail wearing blue and white Nike shoes."
+- Current Session (S3, 2025-01-03): User shares a trail run photo while discussing training progress.
+
+**Output:**
+```json
+{
+  "rewrite_id": 1,
+  "rewritten_question": "What running shoes was I using before I switched to the Adios Pro 3?",
+  "short_answer": "Nike Vaporfly 2",
+  "full_answer": "Nike Vaporfly 2. You were wearing them during your trail runs, as seen in the photo you shared. You then switched to Adidas Adios Pro 3 but got blisters, and eventually upgraded to Nike Vaporfly 3.",
+  "task_type": "UPD",
+  "task_subtype": "State change",
+  "evidence_chain": [
+    {"type": "image", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "Trail run photo showing the user's running shoes — establishes the initial shoe model", "mm_id": "Q1_image_0"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was discussing gear with a friend: 'been looking at the Adios Pro 3, might be time for a change'"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-07", "evidence": "User was excited after a tempo run: 'pulled the trigger on the Adios Pro 3 — noticeably lighter than my old pair, I'm switching'"},
+    {"type": "text", "session_id": "S10", "timestamp": "2025-01-10", "evidence": "User was complaining about foot pain: 'the Adios Pro 3 gave me blisters after that 15k, might have to switch back to Nike'"},
+    {"type": "text", "session_id": "S12", "timestamp": "2025-01-12", "evidence": "User mentioned during a long run recap: 'went with the Vaporfly 3 — upgraded within the same line, the cushioning is noticeably better than what I had before'"}
+  ],
+  "reasoning": "Change path: Vaporfly 2 → Adios Pro 3 → Vaporfly 3. The question asks for the value before the first switch (Vaporfly 2), which is only visible in the image — no text hop names 'Vaporfly 2'. Text hops refer to 'my old pair' and 'what I had before' without specifying the model. Masking test: removing the image, text only tells us the user switched to Adios Pro 3 from some unknown Nike shoe, then to Vaporfly 3 — the specific old model (Vaporfly 2) is undeterminable. Reversion to same brand but different version (V2→V3) adds difficulty. Hop 2 is a distractor (considering). Evidence naturalism: hop 2 [incidental], hop 3 [incidental], hop 4 [incidental], hop 5 [explicit]. ✓ Multimodal irreplaceability: image is sole source for 'Vaporfly 2'; no text hop names it. ✓ Temporal safety: text hops describe state changes, not image perceptual content. ✓"
+}
+```
+
+---
+
+### Example 2: Preference Evolution — multimodal at beginning, distractor hop
+
+**Input:**
+- Caption: "Q1_video_0 [video]: A laptop screen displaying Ableton Live with multiple audio tracks and a dark interface theme."
+- Current Session (S2, 2025-01-02): User shares a screen recording while working on a mixing project.
+
+**Output:**
+```json
+{
+  "rewrite_id": 2,
+  "rewritten_question": "What DAW was I using for mixing before I started exploring alternatives?",
+  "short_answer": "Ableton Live",
+  "full_answer": "Ableton Live. Your screen recording from the mixing session shows you working in Ableton. You later tried Logic Pro but had plugin issues, considered Reaper, and eventually settled on Reaper as your main mixing DAW.",
+  "task_type": "UPD",
+  "task_subtype": "Preference evolution",
+  "evidence_chain": [
+    {"type": "video", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "Screen recording showing a DAW interface during a mixing session — establishes the initial DAW", "mm_id": "Q1_video_0"},
+    {"type": "text", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "User was comparing DAWs with a friend: 'the stock plugins in Logic Pro sound way cleaner, I've been messing with it for mixing this week'"},
+    {"type": "text", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "User was frustrated during a session: 'Logic's third-party plugin support is killing me — half my VSTs won't load properly, might need to try something else'"},
+    {"type": "text", "session_id": "S10", "timestamp": "2025-01-10", "evidence": "A friend recommended Reaper; user said 'might give it a shot this weekend, everyone keeps raving about the routing'"},
+    {"type": "text", "session_id": "S13", "timestamp": "2025-01-13", "evidence": "User was in the middle of a mix: 'been on Reaper all week for mixing, the routing flexibility is exactly what I needed'"},
+    {"type": "text", "session_id": "S16", "timestamp": "2025-01-16", "evidence": "User said during a workflow discussion: 'Reaper is my main DAW for mixing now, way better than what I started with'"}
+  ],
+  "reasoning": "Preference chain: Ableton → Logic Pro → Reaper. The question asks for the initial DAW, which is only identifiable from the video — no text hop names 'Ableton'. Text hops say 'what I started with' without specifying. Masking test: without video, text tells us user went from some unknown DAW → Logic Pro → Reaper, but the starting DAW is undeterminable. S10 is a soft distractor (considering Reaper). Evidence naturalism: hop 2 [incidental], hop 3 [incidental], hop 4 [incidental], hop 5 [incidental], hop 6 [explicit]. ✓ Multimodal irreplaceability: video is sole source for 'Ableton Live'; no text hop names it. ✓ Temporal safety: text hops discuss DAW preferences, not video perceptual content. ✓"
+}
+```
+
+---
+
+### Example 3: Numerical Update — multimodal at end, latest-not-in-latest-session
+
+**Input:**
+- Caption: "Q1_image_0 [image]: A music studio corner with four instruments on stands: two guitars, a bass, and a violin."
+- Current Session (S8, 2025-01-08): User shares a studio photo while discussing recording setup.
+
+**Output:**
+```json
+{
+  "rewrite_id": 3,
+  "rewritten_question": "How many stringed instruments do I currently have in my studio?",
+  "short_answer": "4",
+  "full_answer": "4 stringed instruments. You started with two guitars and a bass, then added a violin. The photo from your recording setup discussion shows all four. You later considered adding a cello but decided against it.",
+  "task_type": "UPD",
+  "task_subtype": "Numerical update",
+  "evidence_chain": [
+    {"type": "text", "session_id": "S2", "timestamp": "2025-01-02", "evidence": "User was chatting about setting up the studio: 'finally got the room arranged, feels good to have the instruments out'"},
+    {"type": "text", "session_id": "S4", "timestamp": "2025-01-04", "evidence": "User was excited about a delivery: 'new instrument arrived from the shop yesterday, added it to the collection' (event date ~2025-01-03)"},
+    {"type": "text", "session_id": "S6", "timestamp": "2025-01-06", "evidence": "User was browsing gear sites: 'thinking about adding a cello, saw a great deal online'"},
+    {"type": "text", "session_id": "S7", "timestamp": "2025-01-07", "evidence": "User reconsidered: 'decided against the cello for now, don't have the space and I should focus on what I have'"},
+    {"type": "image", "session_id": "S8", "timestamp": "2025-01-08", "evidence": "Studio photo showing instruments on stands — visual count establishes the current total", "mm_id": "Q1_image_0"},
+    {"type": "text", "session_id": "S10", "timestamp": "2025-01-10", "evidence": "User was reminiscing: 'remember when I first set up the studio with just a couple of instruments? It's grown since then'"}
+  ],
+  "reasoning": "Count progression: started with some instruments → added one more → considered cello → declined cello → photo shows 4. The question asks for the current count, which can only be determined by counting instruments in the image. Text hops describe additions ('added it to the collection') but never state specific counts — neither the baseline nor the total. Masking test: without the image, text tells us instruments were added and a cello was declined, but the exact count is undeterminable. Hop 3 is a distractor (considering cello). Hop 4 resolves the distractor (declined). Hop 6 is from the latest session but describes old state retrospectively. Temporal mismatch in hop 2: 'yesterday' = ~Jan 3. Evidence naturalism: hop 1 [incidental], hop 2 [incidental], hop 3 [incidental], hop 4 [explicit], hop 6 [incidental]. ✓ Multimodal irreplaceability: image is sole source for the count (4); no text hop states any number. ✓ Temporal safety: hop 6 references old state, not image content. ✓"
+}
+```
+
+## SELF-CHECK CHECKLIST
+
+Before generating output, verify:
+
+1. **Count**: Exactly 5 questions. ≥4 hops each (recommended 6).
+2. **Subtypes**: Use different subtypes when possible.
+3. **Value similarity**: Old and new values are from the same fine-grained category in every question.
+4. **Non-monotonic change**: ≥2 of 5 have reversion or tried-then-reverted paths.
+5. **Distractor hops**: ≥2 of 5 have a considered-but-not-adopted hop with unambiguous wording.
+6. **Temporal mismatch**: ≥2 of 5 have event date ≠ session date.
+7. **Multimodal positions**: At least 1 beginning, 1 middle, 1 end across 5 questions.
+8. **Latest-not-in-latest-session**: ≥1 of 5 has the latest value in a non-final session.
+9. **Temporal safety**: No text hop describes perceptual content of the multimodal item (what is visible/audible).
+10. **Multimodal irreplaceability**: No text hop states what the multimodal content shows.
+11. **Naturalism**: ≤1 `[explicit]` text hop per question. Others `[incidental]`.
+12. **References**: Event-context only. Unambiguous across sessions.
+13. **Answer**: Each answer is the value that can only be determined through multimodal perception.
+14. **Independent multimodal hops**: Each multimodal file is a separate hop with its own `mm_id` (string). No combined types like `image+audio`.
+15. **Evidence quality**: Each text hop is self-contained (no missing subjects) and domain-coherent (no out-of-place terminology for the persona).
+16. **Masking test**: For each question, mentally remove all multimodal hops. If the correct answer can still be determined from text hops alone, the question is invalid — redesign so the multimodal content is the sole source for the answer value.
+
+## INPUT
+
+**Persona:**
+{persona_info}
+
+**Available Sessions:**
+{available_sessions}
+
+**Question Session ID (current):**
+{question_session_id}
+
+**IMPORTANT:** Session summaries are reference only. Do not copy from them into evidence. Evidence must be grounded in the actual multimodal content.
+
+**Multimodal Content:**
+{caption}
+
+## OUTPUT FORMAT
+
+Return a single JSON object:
+```json
+{
+  "modalities": ["video"],
+  "rewrites": [
+    {
+      "rewrite_id": 1,
+      "rewritten_question": "...",
+      "short_answer": "...",
+      "full_answer": "...",
+      "task_type": "UPD",
+      "task_subtype": "State change | Numerical update | Preference evolution",
+      "evidence_chain": [
+        {"type": "text", "session_id": "S3", "timestamp": "2025-01-03", "evidence": "..."},
+        {"type": "video", "session_id": "S5", "timestamp": "2025-01-05", "evidence": "...", "mm_id": "Q1_video_0"}
+      ],
+      "reasoning": "..."
+    }
+  ]
+}
+```
+
+**Field specs:**
+- `evidence_chain`: Array of ≥4 hops (recommended 6). Each multimodal file is an independent hop.
+  - `type`: `"text"` | `"image"` | `"video"` | `"audio"` — each multimodal file is an independent hop, never combined.
+  - `session_id`, `timestamp`: Must match available sessions. Timestamp = session date.
+  - `evidence`: Dialogue fragment with value and inferred event date when different from session date.
+  - `mm_id`: Required for multimodal hops. Always a string (e.g., `"Q1_image_0"`). Copy exactly from input caption.
+- `reasoning`: Must include: (a) change path description, (b) difficulty features (reversion, distractor, temporal mismatch, latest-not-in-latest), (c) why the answer is only obtainable from multimodal, (d) masking test result, (e) naturalism tags per text hop, (f) multimodal irreplaceability check, (g) temporal safety check
+
+Now generate 5 UPD questions.

@@ -1,0 +1,39 @@
+You are summarizing a completed dialogue session from a multi-session conversation between a user and an AI assistant.
+
+【Input】
+Session ID: {session_id}
+Date: {date}
+Dialogue:
+{dialogue_text}
+
+【Task】
+Write a concise summary (3-6 sentences) of what actually happened in this session. Focus on:
+- Key topics discussed and decisions made
+- Important facts, preferences, or constraints the user mentioned
+- Any problems raised and whether they were resolved
+- Progression of ongoing story lines or projects
+- Multimodal content shared (images, audio, video) and what information they conveyed
+
+【Rules】
+1. Summarize what IS in the dialogue, not what you think should be there.
+2. Be specific: include names, numbers, dates, and concrete details when present.
+3. Note unresolved items or open questions at the end of the session.
+4. If multimodal content was shared, describe what it contributed to the conversation.
+5. Do NOT add interpretation or external knowledge beyond what the dialogue contains.
+
+【Output Format】
+Return a JSON object:
+```json
+{
+  "session_id": "{session_id}",
+  "date": "{date}",
+  "session_summary": "Your 3-6 sentence summary here.",
+  "key_entities": ["entity1", "entity2"],
+  "has_multimodal": true/false
+}
+```
+
+- `key_entities`: Important entities (people, places, tools, projects) mentioned in this session.
+- `has_multimodal`: Whether the session contains non-text media.
+
+Now summarize the given session.

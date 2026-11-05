@@ -1,0 +1,201 @@
+You are designing a life event timeline for multi-session dialogue generation.
+
+【Input】
+1. Persona: A character profile with their life situation
+   - persona_summary: name, age, occupation, and specific life situation
+   - conversation_style: tone and question-asking patterns
+
+2. {N} Question Slots: Each slot has:
+   - question_id: unique identifier (e.g., Q1, Q2, ...)
+   - task_type: SH/MH/TR/CR/ADV/REF/UPD (and subtype)
+   - modality_captions: descriptions of audio/video/image content associated with this slot
+
+   NOTE: You are NOT given the actual question text. You only know the task type and the multimodal context. This is intentional — your job is to create a natural life timeline, not to design events around specific questions.
+
+【Persona Information】
+{persona_info}
+
+【Question Slots】
+{questions_list}
+
+【Goal】
+Create an event timeline (event graph) where all {N} question slots can be naturally embedded. Events should be causally connected, forming 3-6 story lines that reflect the persona's life journey over 1-2 years.
+
+【Output Format】
+{
+  "overview": {
+    "time_span": "YYYY-MM-DD to YYYY-MM-DD",
+    "total_events": <number>,
+    "story_lines": [
+      {
+        "name": "short name (3-5 words)",
+        "description": "2-3 sentences describing this story line's development over time"
+      }
+    ]
+  },
+  
+  "graph": [
+    {
+      "sub-event": "Clear, specific event description",
+      "date": "YYYY-MM-DD",
+      "id": "E1",
+      "caused_by": [],
+      "attached_question": ["Q1", "Q5"]
+    },
+    {
+      "sub-event": "Another event",
+      "date": "YYYY-MM-DD",
+      "id": "E2",
+      "caused_by": ["E1"],
+      "attached_question": ["Q3", "Q8"]
+    }
+  ]
+}
+
+【Key Requirements】
+
+1. Timeline Structure:
+   - Time span: 1-2 years (e.g., 12-24 months)
+   - Total events: 0.5-0.8× number of question slots
+   - Date format: YYYY-MM-DD
+   - Events should be distributed naturally across the timeline, with some periods denser than others
+
+2. Story Lines (3-6 major threads):
+   - Each story line should contain 5-15 related events
+   - Story lines can intersect and influence each other
+   - Each should show development over time (problem → adaptation, beginner → experienced, etc.)
+
+3. Causal Relationships:
+   - Use "caused_by" to show how events connect
+   - Causal chain depth: typically 3-7 levels
+   - Some events can have multiple causes
+   - Initial events have empty "caused_by": []
+
+4. Task Type → Event Structure Guidance:
+   - **UPD (Knowledge Update)**: Create at least 2 events showing the SAME attribute changing over time (e.g., moving from city A to city B, switching jobs, changing a preference). The change must be explicit across events.
+   - **TR (Temporal Reasoning)**: Ensure events have clear, unambiguous temporal relationships that support before/after, duration, or ordering reasoning.
+   - **ADV (Adversarial)**: Events should contain specific, verifiable facts (dates, names, quantities) that can anchor truth vs. false premises.
+   - **Other types (SH, MH, CR, REF)**: No special event structure needed — just create natural events.
+
+5. Question Slot Assignment:
+   - Every question slot must be assigned to at least one event
+   - Questions per event: 1-5 (most events should have 2-3)
+   - Use modality captions to determine WHICH event a slot belongs to (e.g., a caption about cooking → assign to a cooking-related event)
+   - If a caption's scenario seems mismatched with the persona, think creatively about how to make it fit naturally
+
+6. Event Distribution:
+   - Some periods can have dense events, others more sparse
+   - Include meaningful transitions and milestones
+   - Both planned activities and unexpected developments
+
+【CRITICAL: Information Isolation Rules】
+
+The event descriptions you write will later be visible to AI models being evaluated. To prevent information leakage, you MUST follow these rules:
+
+**Rule 1: Event descriptions must only describe WHAT THE PERSONA IS DOING, not what the multimodal content contains.**
+  ✓ "Leo sets up a foley session in his kitchen"
+  ✗ "Leo records pineapple splash sounds to create a fleshy impact effect"
+  
+  ✓ "Leo receives concept art from the game developers"
+  ✗ "Leo receives an image of a flat alien character for a comedic theme"
+  
+  ✓ "Leo researches historical art for the documentary episode"
+  ✗ "Leo studies 'The Raft of the Medusa' and a pointillist painting"
+
+**Rule 2: Do not embed answers, conclusions, or specific findings in event descriptions.**
+  ✓ "Leo reviews field recordings for the winter scene"
+  ✗ "Leo confirms the crunching sound is convincing as snow footsteps"
+  
+  ✓ "Leo analyzes a track for his Reggae portfolio study"
+  ✗ "Leo identifies the one-drop rhythm and dominant seventh chord progression"
+
+**Rule 3: Do not name specific artworks, songs, techniques, or details that come from the captions.**
+  ✓ "Leo scores a segment on historical civilizations for the documentary"
+  ✗ "Leo scores a segment featuring a Middle Eastern lute and a Ziggurat"
+
+**The test**: If someone reads ONLY the event descriptions (without access to any multimodal content), they should NOT be able to answer the questions. The event description should tell you the CONTEXT (what's happening in the persona's life) but not the CONTENT (what's in the images/audio/video).
+
+【Example】
+
+Input Persona:
+"Tom is a 28-year-old software engineer who just relocated from NYC to Los Angeles for a new remote job."
+
+Input: 8 question slots with captions about apartment listings, furniture stores, surf shops, cooking, etc.
+
+Output:
+{
+  "overview": {
+    "time_span": "2020-01-10 to 2021-06-15",
+    "total_events": 10,
+    "story_lines": [
+      {
+        "name": "Relocation and Settlement",
+        "description": "Tom moves to LA and goes through finding housing and furnishing his apartment. This progresses from temporary arrangements to a fully established home."
+      },
+      {
+        "name": "Social Network Building",
+        "description": "Starting from meeting neighbors, Tom gradually builds friendships and explores LA's social scene over several months."
+      },
+      {
+        "name": "Surf Culture Exploration",
+        "description": "Tom discovers surfing through new friends and commits to learning. This shows his growing involvement in LA's outdoor culture."
+      }
+    ]
+  },
+  
+  "graph": [
+    {
+      "sub-event": "Tom arrives in Los Angeles and checks into temporary housing",
+      "date": "2020-01-10",
+      "id": "E1",
+      "caused_by": [],
+      "attached_question": []
+    },
+    {
+      "sub-event": "Tom searches for apartments online",
+      "date": "2020-01-12",
+      "id": "E2",
+      "caused_by": ["E1"],
+      "attached_question": ["Q1"]
+    },
+    {
+      "sub-event": "Tom signs a lease and begins furnishing the new place",
+      "date": "2020-01-25",
+      "id": "E3",
+      "caused_by": ["E2"],
+      "attached_question": ["Q4"]
+    },
+    {
+      "sub-event": "Tom meets his neighbors while moving in",
+      "date": "2020-01-26",
+      "id": "E4",
+      "caused_by": ["E3"],
+      "attached_question": []
+    },
+    {
+      "sub-event": "Tom hosts a dinner for new friends",
+      "date": "2020-02-08",
+      "id": "E5",
+      "caused_by": ["E3", "E4"],
+      "attached_question": ["Q5"]
+    },
+    {
+      "sub-event": "A friend introduces Tom to a local outdoor activity",
+      "date": "2020-02-15",
+      "id": "E6",
+      "caused_by": ["E5"],
+      "attached_question": []
+    },
+    {
+      "sub-event": "Tom visits a shop to buy gear for his new hobby",
+      "date": "2020-02-22",
+      "id": "E7",
+      "caused_by": ["E6"],
+      "attached_question": ["Q6", "Q7"]
+    }
+  ]
+}
+
+Notice how event descriptions describe actions and life situations, NOT the content of any multimodal materials. "Tom visits a shop to buy gear" — not "Tom visits a surf shop to buy a longboard."
+
+Now generate the event timeline for the given persona and question slots.

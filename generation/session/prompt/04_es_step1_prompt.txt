@@ -1,0 +1,67 @@
+You are generating Summarization (SUM) evaluation questions for a multi-session dialogue memory benchmark.
+
+【Input】
+1. Event Graph:
+{event_graph}
+
+2. Session Summaries:
+{session_summaries}
+
+【Goal】
+Generate 6 SUM questions that test whether an AI system can recall and synthesize information scattered across multiple sessions. Each question asks the model to produce a short summary covering a specific scope of the conversation history.
+
+【Three Subtypes】
+
+1. **Story Line Summary**
+   - Scope: One story line from the event graph — its progression, cause-effect chain, and outcome.
+   - Selection: Pick a story line with causal chain depth ≥ 3 events. The richer the twists and developments, the better.
+   - Example scope: "How the user's apartment search progressed from initial requirements to final decision"
+
+2. **Entity-Centric Summary**
+   - Scope: All information about a specific entity (person, object, tool, place, project) scattered across sessions.
+   - Selection: Pick an entity that appears in ≥ 3 sessions. Prefer entities involved in multiple story lines or events.
+   - Example scope: "Everything discussed about the user's dog Max — adoption, training, health issues"
+
+3. **Period Overview**
+   - Scope: Key events and developments from the event graph within a specific time window. Only cover events that belong to the established story lines — do not require coverage of casual or unrelated conversations that happen to fall in the same period.
+   - Selection: Pick a period with ≥ 3 events from the event graph and ≥ 3 sessions. Prefer periods where multiple story lines converge or intersect.
+   - Example scope: "Summarize the key developments in Marcus's gallery project during October to December 2023, including workspace changes, audio curation progress, and any new creative directions explored."
+
+【Key Principles】
+
+1. **Information Scattering**: Every SUM question must require information from at least 3 different sessions. Avoid scopes where all relevant content is concentrated in 1-2 sessions.
+
+2. **Scope Diversity**: The 6 questions should cover different parts of the conversation history. Minimize overlap in event_ids and session_ids across questions.
+
+3. **Subtype Distribution**: Generate 2 questions per subtype (2 Story Line + 2 Entity-Centric + 2 Period Overview). If the data lacks sufficient material for a balanced split, adjust to 3-2-1 but never skip a subtype entirely.
+
+4. **Neutral Question Phrasing**: Questions should be direct and neutral, not conversational. Use phrasing like "Summarize how...", "Describe the progression of...", "What happened regarding... during...".
+
+5. **Answerable from Dialogue**: The ideal summary must be fully derivable from the session content. Do not require external knowledge.
+
+【Output Format】
+Return a JSON object:
+```json
+{
+  "questions": [
+    {
+      "question_id": "SUM_1",
+      "subtype": "story_line_summary | entity_centric_summary | period_overview",
+      "event_ids": ["E3", "E5", "E8", "E12"],
+      "session_ids": ["S2", "S5", "S8", "S11"],
+      "question": "Summarize how ...",
+      "ideal_summary": "3-5 sentences describing the expected answer direction",
+      "scope_reasoning": "1-2 sentences: why this scope was selected — what makes it require cross-session recall"
+    }
+  ]
+}
+```
+
+【Field Descriptions】
+- `event_ids`: Events from the event graph that fall within this question's scope.
+- `session_ids`: Sessions that contain relevant information for answering this question. Must be ≥ 3.
+- `question`: The evaluation question text. Neutral, direct phrasing.
+- `ideal_summary`: A concise sketch of what a correct answer should cover. Not exhaustive — just the main points and direction.
+- `scope_reasoning`: Justify why this scope is a good SUM question — primarily, why answering it requires recalling information from multiple sessions.
+
+Now generate 6 SUM questions for the given event graph and session summaries.

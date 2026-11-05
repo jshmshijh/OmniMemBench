@@ -1,0 +1,115 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnimembench"
+version = "1.0.0"
+description = "OmniMemBench: Towards Scalable Evaluation of Long-Term Omni-Modal Agent Memory"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Junhan Shi"},
+    {name = "Qiyi Wang"},
+    {name = "Zhenning Shi"},
+    {name = "Xiongwei Wu"},
+    {name = "Ming Ma"},
+    {name = "Baoqi Pei"},
+    {name = "Yong Jiang"},
+    {name = "Qing Li"},
+    {name = "Weigao Sun"},
+    {name = "Yiran Zhong"},
+    {name = "Steven Hoi"},
+]
+keywords = ["benchmark", "memory", "multimodal", "long-context", "conversational-ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "openai>=1.0",
+    "torch>=2.0",
+    "torchvision",
+    "transformers>=4.52",
+    "sentence-transformers>=2.0",
+    "qwen-omni-utils",
+    "langchain-core",
+    "numpy",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+rebuild = [
+    "pyarrow",
+    "huggingface-hub",
+    "soundfile",
+    "remotezip",
+]
+eval = [
+    "nltk",
+    "bert-score",
+]
+amem = [
+    "litellm",
+    "chromadb",
+    "rank-bm25",
+    "nltk",
+    "scikit-learn",
+]
+hipporag = [
+    "python-igraph",
+    "litellm",
+    "boto3",
+    "tenacity",
+    "tiktoken",
+    "pandas",
+    "pydantic",
+    "httpx",
+    "filelock",
+]
+mem0 = [
+    "mem0ai>=1.0,<2",
+]
+langmem = [
+    "langmem",
+    "langgraph",
+    "langchain",
+]
+baselines = ["omnimembench[amem,hipporag,mem0,langmem]"]
+video = [
+    "decord",
+]
+generation = []
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+]
+all = ["omnimembench[rebuild,eval,baselines,generation,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/jshmshijh/OmniMemBench"
+Dataset = "https://huggingface.co/datasets/jshmsjh/OmniMemBench"
+Issues = "https://github.com/jshmshijh/OmniMemBench/issues"
+
+[tool.setuptools.packages.find]
+include = ["omnimembench*"]
+
+[tool.setuptools.package-data]
+omnimembench = ["**/*.txt", "**/LICENSE"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

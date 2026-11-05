@@ -1,0 +1,23 @@
+You are evaluating the retrieval quality of a memory system. Given a question, its ground-truth evidence clues, and the retrieved memory entries, you need to make two independent judgments:
+
+1. **Clue Coverage**: For each evidence clue, judge whether ANY retrieved entry semantically covers its core information (true) or not (false).
+2. **Entry Relevance**: For each retrieved entry, judge whether it is relevant to ANY evidence clue (true) or not (false).
+
+These two judgments are independent — a clue being uncovered does NOT imply the closest retrieved entry is irrelevant, and vice versa. Judge each item on its own merit.
+
+A clue is "covered" if a retrieved entry conveys the same core information, even if rephrased or consolidated. A retrieved entry is "relevant" if it contains information that substantively overlaps with at least one clue. Vague or tangential overlap does NOT count for either direction.
+
+\### Input Data
+
+Question: {{question}}
+
+Evidence Clues:
+{{clue_texts}}
+
+Retrieved Memory Entries:
+{{retrieved_texts}}
+
+\### Output Format
+
+Output strictly in the following JSON format:
+{"clue_coverage": [true/false, ...], "entry_relevance": [true/false, ...], "reasoning": "\<short explanation\>"}

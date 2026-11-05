@@ -1,0 +1,99 @@
+## EVALUATION TASK
+
+You are a judge evaluating {task_type} rewrites. Select the single best rewrite from 5 candidates.
+
+### Context
+
+**Persona:**
+{persona_info}
+
+**Original QA:**
+- Question: {original_question}
+- Answer: {original_answer}
+- Caption: {caption}
+
+**Available Sessions (with events):**
+{available_sessions}
+
+### Candidate Rewrites
+
+{rewrites_json}
+
+---
+
+## EVALUATION RUBRIC
+
+Evaluate each candidate against hard checks first (any failure → eliminate), then compare quality among surviving candidates.
+
+### Hard Checks (any failure → eliminate)
+
+**H1. Perceptual leakage**: The rewritten question must NOT describe information that requires perceiving the multimodal content. References must use event context only (who, when, why, occasion).
+- ✗ "the photo with the birthday cake", "the audio about renewable energy"
+- ✓ "the photo I shared during the workspace audit"
+
+**H2. Unambiguous reference**: Using the Available Sessions list, verify the question's reference matches exactly ONE session/event. Vague references matching multiple sessions → eliminate.
+
+**H3. Temporal safety**: Every text hop must come from a session with timestamp ≤ the multimodal hop's session timestamp. Exception for UPD only: later text hops are allowed if they describe state changes but do NOT describe the multimodal content's perceptual details.
+
+**H4. Multimodal irreplaceability**: If the correct answer can be derived from text evidence alone (without perceiving the multimodal content), eliminate. At least one key fact must come exclusively from the multimodal content.
+
+**H5. Task-specific constraints** (use ONLY the block matching the current task type):
+
+#### ADV
+- Yes statements: ≥4 verifiable claims, exactly 1 false (near-miss), ≥1 counter-intuitive correct claim
+- No statements: ≥1 counter-intuitive correct claim
+- Hop count: 2-3
+
+#### MH
+- ≥3 hops (one multimodal + ≥2 independent text hops)
+- Removing any hop must change the answer or make it undeterminable
+- Must contain a boundary case, ambiguous membership, non-obvious link, or derived dimension
+- ≥1 plausible wrong answer from incomplete reasoning
+
+#### REF
+- ≥2 hops; all short_answer = "Not mentioned"
+- A strong model must be tempted to answer rather than refuse
+- Missing piece cannot be filled by domain knowledge; absence requires ≥2 reasoning steps
+
+#### TR
+- ≥3 hops; ≥2 indirect time anchors (no directly stated dates)
+- Multimodal hop's session date must be used in a temporal calculation
+- Ordering gap ≤2 days; Duration non-round answer; Recency ≥1 near-miss; Temporal Relationship boundary ≤1 day from edge
+
+#### UPD
+- ≥4 hops; ≥2 hops with different values for the same attribute
+- Old and new values in same fine-grained semantic subcategory
+- Answer = value from most recent inferred event date
+
+#### CR
+- ≥1 implicit intermediate conclusion (derived, not stated)
+- Intermediate requires persona-specific rule (domain knowledge alone insufficient)
+- Removing multimodal hops makes answer indeterminate
+- No single-step matching ("X ≠ Y → No" is not CR)
+
+#### SH
+- ≥1 confusable alternative sharing ≥2 attributes with correct answer
+- ≥1 difficulty pattern: spatial disambiguation, counter-default, cross-element transfer, or peripheral precision
+- Question wording does not hint at the answer
+
+### Quality Comparison (among surviving candidates)
+
+| Dimension | What to look for |
+|-----------|-----------------|
+| **Evidence naturalism** | Dialogue fragments, not rule summaries; ≤1 explicit hop |
+| **Difficulty** | Near-miss boundaries, counter-intuitive elements, plausible wrong answers |
+| **Persona fit** | Question feels natural for this specific persona |
+| **Reasoning completeness** | Hop necessity, multimodal bottleneck, naturalism tags, temporal safety all addressed |
+
+---
+
+## OUTPUT
+
+```json
+{
+  "reasoning": "Comparative analysis: hard check results per candidate, then quality comparison among survivors",
+  "best_rewrite_id": <1-5>
+}
+```
+
+If all candidates fail hard checks, select the one with the fewest and least severe violations and note this in reasoning.

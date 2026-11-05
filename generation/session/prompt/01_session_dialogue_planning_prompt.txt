@@ -1,0 +1,243 @@
+You are designing dialogue flow for sessions in a multimodal conversational memory benchmark.
+
+【Task】
+Given a session outline, evidence pieces that must appear in this session, and summaries of previous sessions, design:
+1. The dialogue flow (phases) for this session
+2. Where each evidence piece naturally fits
+3. A detailed summary of what happens in this session
+
+【Meta-Level Understanding】
+
+The dialogue you design will become a TEST INPUT for a multimodal memory benchmark:
+
+1. A tested model receives ALL session dialogues (every word from both user and assistant) as memory context.
+2. It also receives the actual multimodal files (images, audio, video) embedded in those dialogues.
+3. It is then asked a question requiring cross-session reasoning and/or media perception.
+
+**The dialogue text is the exam paper, not a real conversation.** Two categories of information must be protected:
+
+- **Category A — Multimodal perceptual content:** What a media file depicts/sounds like/shows. Must ONLY be obtainable by perceiving the actual media. Dialogue text must not describe, summarize, characterize, or react to specific media content.
+- **Category B — Final assembled answers:** Many questions require collecting evidence fragments from multiple sessions and/or combining text with media perception. This final conclusion must NOT appear anywhere in the dialogue. Individual evidence fragments scattered across sessions are fine — but no character should state the assembled result.
+
+**Critical distinction:** Text evidence carrying answer-relevant information IS allowed — it is deliberately planted across sessions. What is NOT allowed is anyone performing the assembly and stating the conclusion.
+
+【Previous Session Summaries】
+{previous_summaries}
+
+【Current Session Outline】
+{session_outline}
+
+【Evidence to Embed ({num_evidence} pieces)】
+{evidence_list}
+
+**CRITICAL CONSTRAINT**: You MUST use ONLY the evidence pieces listed above. Each evidence piece has a specific evidence_id (e.g., "Q1_hop1", "Q2_hop3"). DO NOT create, invent, or hallucinate any additional evidence beyond this list. Every evidence in your output must have an evidence_id that exactly matches one from the input list above.
+
+---
+
+【Informed Perception Model】
+
+For each multimodal evidence piece you have three layers:
+
+1. **caption**: Actual content description. Use internally for coherent, non-contradictory planning.
+2. **context_hint**: Sanitized topic signal (e.g., "related to a musical performance"). This is the MAXIMUM detail level your output may expose about the media.
+3. **question**: The benchmark question this evidence serves. Tells you exactly what information must NOT be inferable from dialogue text alone.
+
+**The precision test:** For each multimodal evidence piece: "If someone reads my entire plan output but never sees/hears the actual media, could they answer the associated question?" If yes → leakage. If no → correct.
+
+**Using context_hint as output ceiling:**
+- READ the caption to understand the media fully.
+- WRITE your output at context_hint granularity or below.
+- CHECK against the question to ensure nothing answer-critical leaks.
+
+Example: Caption says "a red acoustic guitar leaning against a wooden chair", question asks "What color is the instrument?", context_hint says "related to a musical hobby":
+- ✓ "a hobby-related item" (at context_hint level)
+- ✗ "guitar", "red", "instrument", "wooden chair"
+
+---
+
+【Field Responsibilities】
+
+| Field | Role | Describes | Must NOT contain |
+|---|---|---|---|
+| `phase description` | The Stage | User behavior, conversational context, setting, mood | Media attributes, what files depict/sound like |
+| `integration_hint` | The Entrance | Why now (motivation), where in flow, what user expects AI to do | For mm evidence: any words about what media contains |
+| `summary` | The Narrative Thread | Session-level story arc, topic flow, mood shifts | Media judgments; must give each evidence a separate sentence; mm sharing uses neutral language ("shares a file") |
+
+---
+
+【Anti-Leakage Rules】
+
+**Core Rules:**
+- **Rule 1 — No media description (Category A):** Check each phrase against the question. If it helps answer → remove.
+- **Rule 2 — No final-answer assembly (Category B):** No character assembles scattered evidence into a conclusion.
+
+**High-Danger Patterns (special cases of Rules 1 & 2):**
+
+| Pattern | What it means | Bad example | Good alternative |
+|---|---|---|---|
+| **Media judgment interaction** (Rule 3) | User asks assistant to evaluate/classify/verify media against criteria | "Check whether the image meets formatting criteria" | "Upload file, ask assistant to archive it" |
+| **Benchmark question echoing** (Rule 4) | User asks a question identical/equivalent to the benchmark question | "What code should this be tagged with?" (= benchmark Q) | "Adding this to the transit case studies folder" |
+| **Combinatorial leakage** (Rule 5) | Text + mm evidence in same phase combine to reveal the answer | Bridging language connecting text and mm evidence | Separate sentences, no bridging language |
+| **Cross-phase leakage** (Rule 6) | Info across phases narrows down the answer | Trace what reader accumulates; check if answer becomes inferable | Use question as guide |
+| **Summary propagation** (Rule 7) | Summary passed to future sessions contains judgments | "The image showed a coastal scene" | "shared a file", "uploaded something for the archive" |
+
+---
+
+【Guidelines】
+
+1. **Dialogue Flow**
+   - Design phases (NOT individual turns). Each phase = a chunk of conversation expanding into 1-3 turns later.
+   - Phases don't need logical progression — real conversations jump topics, go on tangents.
+   - Should feel like a real human chatting with an AI assistant.
+
+2. **Evidence Integration**
+   - Each evidence piece in exactly one phase.
+   - Use caption knowledge for better placement (thematically compatible phases) — but output text stays at context_hint level or below.
+   - Use the EXACT evidence_id from the input list.
+
+3. **Phases Without Evidence**
+   - Not every phase needs evidence. Include non-evidence phases for natural flow.
+
+4. **Multi-evidence Phases**
+   - When a phase has both text and mm evidence, watch for combinatorial leakage.
+   - Write each integration_hint standalone — no causal/temporal connectors between evidence pieces.
+   - In summary, describe text and mm evidence in separate sentences.
+
+5. **Temporal Consistency**
+   - When referencing previous sessions, be consistent with actual dates.
+   - Prefer explicit references ("when we set that up", "in our earlier conversation") over time-based references ("yesterday", "last week") unless the date gap genuinely matches.
+
+---
+
+【Complete Example — Question-Aware Leakage Prevention】
+
+**Input evidence:**
+- `Q7_hop2` [text]: "I've been experimenting with a 72-hour cold fermentation for the dough — the flavor development is insane compared to same-day prep."
+  - question: "What specific fermentation duration does the user use for their pizza dough?"
+- `Q7_hop1` [image] (caption: "A round Neapolitan pizza with leopard-spotted crust, fresh mozzarella, basil leaves, and San Marzano tomato sauce on a wooden pizza peel")
+  - context_hint: "related to a baked item someone made"
+  - question: "What specific fermentation duration does the user use for their pizza dough?"
+- `Q15_hop3` [text]: "The trick with cast iron is to preheat it for a full 45 minutes at max temp — most people underestimate that."
+  - question: "How long does the user preheat their cast iron before baking?"
+- `Q9_hop1` [audio] (caption: "Sounds of a crackling wood-fired oven with occasional popping and a faint sizzle of moisture hitting hot stone")
+  - context_hint: "related to a kitchen environment"
+  - question: "What type of oven does the user use for their baking projects?"
+
+**✓ GOOD output:**
+
+```json
+{
+  "phase_id": 3,
+  "description": "The user geeks out about recent experiments at home — going deep on process optimization and sharing something they're proud of.",
+  "evidence": [
+    {
+      "evidence_id": "Q7_hop2",
+      "type": "text",
+      "content": "I've been experimenting with a 72-hour cold fermentation for the dough — the flavor development is insane compared to same-day prep.",
+      "integration_hint": "The user goes on a tangent about process optimization, bringing this up as their latest obsession with getting timing right."
+    },
+    {
+      "evidence_id": "Q7_hop1",
+      "type": "image",
+      "content": "",
+      "integration_hint": "The user drops something into chat that they made recently — they're proud of the result and want a reaction."
+    }
+  ]
+}
+```
+
+```json
+{
+  "phase_id": 5,
+  "description": "The conversation shifts to practical tips and equipment usage. Separately, the user shares a file capturing something from their workspace.",
+  "evidence": [
+    {
+      "evidence_id": "Q15_hop3",
+      "type": "text",
+      "content": "The trick with cast iron is to preheat it for a full 45 minutes at max temp — most people underestimate that.",
+      "integration_hint": "The user riffs on equipment tips they've picked up, mentioning this as their biggest lesson learned."
+    },
+    {
+      "evidence_id": "Q9_hop1",
+      "type": "audio",
+      "content": "",
+      "integration_hint": "The user sends a file on a whim — something they captured at home that they thought was interesting."
+    }
+  ]
+}
+```
+
+Summary excerpt: *"The user dives into recent experiments, going on a tangent about process improvements including a fermentation technique they've been testing. They also share an image of something they made recently. Later, the conversation turns practical as the user discusses equipment tips they've learned. They also send an audio file of something they captured at home."*
+
+**Verification against questions:**
+- Q7 ("fermentation duration"): "72 hours" only in text evidence. Image described as "something they made" — no food/pizza/baking language. ✓
+- Q9 ("oven type"): Audio described as "something they captured at home." No fire/wood/oven language. ✓
+- Q15 ("preheat duration"): "45 minutes" embedded in text evidence as intended. ✓
+- No combinatorial leakage: text and mm evidence in separate sentences, no bridging language. ✓
+
+**✗ BAD output (violates Rules 3 and 4):**
+
+```json
+{
+  "phase_id": 3,
+  "description": "The user uploads an image and asks the assistant whether it matches the plating standards they discussed earlier.",
+  "evidence": [
+    {
+      "evidence_id": "Q7_hop1",
+      "type": "image",
+      "content": "",
+      "integration_hint": "The user shares the image and asks the assistant to evaluate whether the presentation meets their quality benchmarks."
+    }
+  ]
+}
+```
+
+Why bad: Violates Rule 3 (media judgment interaction) and Rule 4 (echoes benchmark question). Downstream dialogue generator will have assistant output a conclusion, leaking the answer.
+
+---
+
+【Output Format】
+
+```json
+{
+  "session_id": "{session_id}",
+  "dialogue_flow": {
+    "session_vibe": "One-line description of the overall feel of this session",
+    "phases": [
+      {
+        "phase_id": 1,
+        "description": "What happens in this phase (the stage)",
+        "evidence": [
+          {
+            "evidence_id": "...",
+            "type": "video|audio|image|text",
+            "content": "...",
+            "integration_hint": "How this evidence enters the scene (the entrance)"
+          }
+        ]
+      },
+      {
+        "phase_id": 2,
+        "description": "What happens in this phase",
+        "evidence": []
+      }
+    ]
+  },
+  "summary": "Session-level narrative thread...",
+  "evidence_placement": {
+    "Q1_hop1": 1,
+    "Q1_hop2": 3,
+    "Q2_hop1": 5
+  }
+}
+```
+
+Notes:
+- `evidence` array can be empty or omitted
+- For text evidence, include `content` as provided
+- For multimodal evidence, leave `content` as empty string
+- `evidence_placement`: evidence_id → phase_id (use ONLY the evidence_id part, e.g. "Q1_hop1")
+- Every evidence piece from input MUST appear in exactly one phase
+- Phase count is flexible
+
+Now design the dialogue flow for session {session_id}.

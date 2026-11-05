@@ -1,0 +1,66 @@
+You are generating evaluation nuggets for a Summarization (SUM) question in a multi-session dialogue memory benchmark.
+
+【Input】
+1. SUM Question Skeleton:
+{question_skeleton}
+
+2. Relevant Session Dialogues:
+{session_dialogues}
+
+【Goal】
+Generate a set of atomic nuggets (scoring units) for evaluating model answers to this SUM question. Each nugget is one indivisible fact that a correct summary should mention. Then match each nugget to the specific dialogue round(s) where that information appears.
+
+【Nugget Design Principles】
+
+1. **Atomic**: Each nugget should be a single fact that cannot be meaningfully split further. "User switched from VS Code to Neovim in March and later switched back" is two nuggets, not one.
+
+2. **Verifiable**: A nugget must be clearly present or absent in a model's answer. Avoid subjective nuggets like "User seemed frustrated" unless the dialogue explicitly states this.
+
+3. **Grounded**: Every nugget must be directly supported by specific dialogue content. Do not infer facts beyond what is stated.
+
+4. **Coverage**: Nuggets should collectively cover the key information in the ideal summary. Aim for 5-10 nuggets per question — enough for fine-grained scoring but not so many that trivial details dominate.
+
+5. **Multimodal Awareness**: If the relevant sessions contain multimodal evidence (images, audio, video referenced in dialogue), include nuggets that capture information from those multimodal sources. Tag these nuggets with source_type "multimodal". At least 1 multimodal nugget is preferred if multimodal content exists in scope, but do not force it if the multimodal content is irrelevant to the question.
+
+【Output Format】
+Return a JSON object:
+```json
+{
+  "question_id": "SUM_1",
+  "question": "The original question text",
+  "ideal_summary": "Refined 3-5 sentence ideal answer based on actual dialogue content",
+  "nuggets": [
+    {
+      "nugget_id": "N1",
+      "content": "User initially wanted a 2-bedroom apartment under $2000/month",
+      "source_type": "text",
+      "source_rounds": [
+        {"session_id": "S2", "round": 3},
+        {"session_id": "S2", "round": 4}
+      ]
+    },
+    {
+      "nugget_id": "N2",
+      "content": "The apartment photos showed a renovated kitchen with granite countertops",
+      "source_type": "multimodal",
+      "source_rounds": [
+        {"session_id": "S5", "round": 7}
+      ]
+    }
+  ]
+}
+```
+
+【Field Descriptions】
+- `ideal_summary`: Refine the sketch from Step 1 based on actual dialogue content. Should be a concise but complete answer.
+- `content`: The atomic fact in plain language.
+- `source_type`: "text" for information from text dialogue, "multimodal" for information derived from images/audio/video shared in the conversation.
+- `source_rounds`: The specific dialogue round(s) where this fact appears or is established. `round` is the 1-indexed turn number within that session.
+
+【Nugget Count Guidance】
+- 5-10 nuggets per question
+- Prioritize important facts over trivial details
+- If the scope covers many sessions, lean toward 8-10 nuggets
+- If the scope is narrower, 5-7 is fine
+
+Now generate nuggets for the given SUM question and session dialogues.

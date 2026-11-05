@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Benchmark files fetched by download_data.py
+data/*
+!data/.gitkeep
+crosswalk/
+/index.jsonl
+/croissant.json
+/DATASHEET.md
+
+# Construction pipeline inputs and outputs
+generation/preprocess/datasets
+generation/filter/qa/
+generation/filter/distractor/
+generation/**/output/
+generation/**/output_*/
+generation/**/_intermediate/
+generation/_pipeline_log/
+
+# Multimodal media (download via scripts/rebuild_multimodal/)
+multimodal/
+
+# Rebuild artifacts
+scripts/rebuild_multimodal/_sources/
+scripts/rebuild_multimodal/rebuild_report.json
+
+# Model checkpoints
+local_models/
+
+# Outputs and results
+outputs/
+result_debug/
+store_state/
+tmp/
+benchmark/longctx/omni/
+benchmark/longctx/vl/
+benchmark/longctx/text/
+benchmark/longctx/output/
+*.pkl
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
